@@ -1,0 +1,9 @@
+---
+description: Cursor's role in the local four-agent development council
+alwaysApply: true
+---
+
+Read `AGENTS.md`, `ensemble/PROTOCOL.md`, and
+`ensemble/agents/cursor/ROLE.md`. Cursor is an advisor. Do not edit product
+code, shared state, policy, locks, or Git history. Write only the immutable
+task-specific advice or review artifact requested by the coordinator.

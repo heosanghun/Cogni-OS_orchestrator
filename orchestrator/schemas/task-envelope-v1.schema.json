@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ensemble.task-envelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "message_id",
+    "idempotency_key",
+    "state_version",
+    "agent_id",
+    "role",
+    "phase",
+    "base_commit",
+    "workspace",
+    "inputs",
+    "policy",
+    "output_path"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "task_id": {"type": "string", "pattern": "^TASK-[A-Za-z0-9._-]+$"},
+    "message_id": {"type": "string", "minLength": 8},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "state_version": {"type": "integer", "minimum": 1},
+    "agent_id": {
+      "enum": ["antigravity", "cursor", "claude", "codex-app"]
+    },
+    "role": {"enum": ["advisor", "executor"]},
+    "phase": {
+      "enum": [
+        "R1_BLIND",
+        "R2_CRITIQUE",
+        "EXECUTOR_PLAN",
+        "PLAN_REVIEW",
+        "IMPLEMENT",
+        "POST_REVIEW"
+      ]
+    },
+    "base_commit": {"type": "string"},
+    "workspace": {"type": "string", "minLength": 1},
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["read_only", "git_push", "network", "deadline_utc"],
+      "properties": {
+        "read_only": {"type": "boolean"},
+        "git_push": {"const": false},
+        "network": {"type": "boolean"},
+        "deadline_utc": {"type": "string", "format": "date-time"}
+      }
+    },
+    "output_path": {"type": "string", "minLength": 1}
+  }
+}

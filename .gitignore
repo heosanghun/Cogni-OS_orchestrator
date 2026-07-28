@@ -1,0 +1,7 @@
+# Local four-agent runtime. Durable decisions live under ensemble/ledger/.
+.ensemble-runtime/
+
+# Editor and operating-system noise.
+.DS_Store
+Thumbs.db
+*.tmp

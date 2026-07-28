@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "executor": "codex-app",
+  "advisors": [
+    "antigravity",
+    "cursor",
+    "claude"
+  ],
+  "advisor_approval_threshold": 2,
+  "required_advisor_responses": 3,
+  "max_cycles": 3,
+  "agent_timeout_minutes": 30,
+  "timeout_retries": 1,
+  "github_mode": "checkpoint_only",
+  "direct_main_push": false,
+  "force_push": false
+}

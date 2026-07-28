@@ -4,6 +4,11 @@
 > **저장소**: [heosanghun/monitoring_project](https://github.com/heosanghun/monitoring_project)  
 > **상태**: **Stage 1 DEQ 5,000 Step 재학습 완료 & 축 ④ 문항 변별력 147.4배 입증 완료**  
 
+> **기록 주의**: 아래 Stage 1/Stage 2 내용은 기존 커밋에 남겨진 당시의
+> 실험 보고 스냅샷이며 새 4-agent coordinator의 실시간 telemetry가 아닙니다.
+> 원시 산출물·코드·SHA를 실제 대상 저장소에서 다시 대조하기 전에는 독립
+> 재검증된 현재 상태로 해석하지 않습니다.
+
 ---
 
 ### 🎉 Stage 1 DEQ 재학습 완료 & 축 ④ 대형 학술적 발견 (Breakthrough)
@@ -31,16 +36,36 @@ System 1.5 / CTS 프로젝트의 5,000 스텝 Stage 1 DEQ 연산자 재학습을
 
 ---
 
-### 🚀 후속 자율 이행: Stage 2 FWP PPO 재학습 가동
+### 🗂️ 보존된 당시 실행 기록: Stage 2 FWP PPO 재학습
 
 - **프로세스**: `scripts/train_stage2_fwp_guarded.py`
 - **할당 GPU**: **GPU 1** (RTX A6000)
 - **입력 백본**: 5,000 스텝 IFT 재학습 및 문항 변별력(147.44배) 검증 완료된 Stage 1 DEQ 백본 (`stage1_last.pt`)
 - **출력 목표**: `/workspace/artifacts/stage2_retrained/stage2_meta_value.pt`
-- **실시간 진행률**: Step 90 / 1,000 PPO 롤아웃 가동 중
-- **실시간 로그**:
+- **기록 당시 진행률**: Step 90 / 1,000 PPO 롤아웃
+- **보존 로그**:
   ```text
   stage2 step=70/1000 loss=-0.0394 reward_mean=-0.0500
   stage2 step=80/1000 loss=-0.0714 reward_mean=-0.0500
   stage2 step=90/1000 loss=-0.0586 reward_mean=-0.0500
   ```
+
+---
+
+## 🤝 4-Agent Local Council
+
+이 저장소는 Antigravity·Cursor·Claude의 독립 자문과 Codex App의 단일
+실행을 조정하는 로컬 우선 협업 제어면을 포함합니다.
+
+- 실시간 메시지·투표·상태 전이: `C:\comunity` 로컬
+- 검증된 결정·소수의견·체크포인트: 이 GitHub 저장소
+- 실행 규칙: 자문 3명 중 2명 승인, 객관적 테스트 통과, hard stop 0건
+- 코드 수정: 승인 후 Codex App 한 명만 수행
+- GitHub 게시: 매 대화가 아니라 검증된 이정표에서만 수행
+
+시작 문서는 [`ensemble/README.md`](ensemble/README.md), 운영 프로토콜은
+[`ensemble/PROTOCOL.md`](ensemble/PROTOCOL.md), coordinator 사용법은
+[`orchestrator/README.md`](orchestrator/README.md)를 참고하십시오.
+
+> 현재 저장소는 협업 제어면입니다. 실제 소스가 다른 저장소에 있다면 각
+> 과제의 `target_workspace`로 명시하며, 기존 사용자 변경은 덮어쓰지 않습니다.
