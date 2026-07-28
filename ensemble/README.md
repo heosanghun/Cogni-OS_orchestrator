@@ -23,6 +23,11 @@ must identify a separate `target_workspace` when the code lives elsewhere
 
 ## Start here
 
+For the four desktop UI rooms shown on one Windows laptop, begin with the
+Korean onboarding guide at [`START_HERE_KO.md`](../START_HERE_KO.md). It
+contains one copy-paste bootstrap prompt per product and distinguishes a live
+GUI smoke loop from a genuinely unattended adapter.
+
 ```powershell
 # Initialize ignored runtime folders.
 powershell -ExecutionPolicy Bypass -File .\orchestrator\ensemble.ps1 init

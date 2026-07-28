@@ -30,6 +30,20 @@ Do not start it as an unattended service until all four adapters pass
 `ADAPTER_CONTRACT.md`. The included self-test exercises the state machine with
 synthetic files and does not call external models.
 
+For a desktop UI smoke loop, `room.ps1` safely selects only messages that
+still have a coordinator-owned pending envelope:
+
+```powershell
+.\orchestrator\room.ps1 next -Agent cursor
+.\orchestrator\room.ps1 wait -Agent cursor -TimeoutSeconds 600
+.\orchestrator\room.ps1 submit -Agent cursor `
+  -MessagePath <ROOM_MESSAGE_PATH>
+```
+
+This helper does not invoke or wake a model. See `START_HERE_KO.md` for the
+four copy-paste UI prompts and the distinction between manual and unattended
+operation.
+
 For a real adapter, `InputFile` must be the exact `output_path` assigned in the
 message envelope. The coordinator binds message ID, agent, phase, state
 version, base commit, outbox path, and durable artifact path before promotion.
