@@ -67,5 +67,9 @@ System 1.5 / CTS 프로젝트의 5,000 스텝 Stage 1 DEQ 연산자 재학습을
 [`ensemble/PROTOCOL.md`](ensemble/PROTOCOL.md), coordinator 사용법은
 [`orchestrator/README.md`](orchestrator/README.md)를 참고하십시오.
 
+Antigravity와 Codex App만 먼저 연결하는 읽기 전용 빠른 대화는
+[`PAIR_FAST_START_KO.md`](PAIR_FAST_START_KO.md)를 사용합니다. 이 경로의
+`PAIR_CANDIDATE`는 4-agent 정족수나 코드 실행 승인이 아닙니다.
+
 > 현재 저장소는 협업 제어면입니다. 실제 소스가 다른 저장소에 있다면 각
 > 과제의 `target_workspace`로 명시하며, 기존 사용자 변경은 덮어쓰지 않습니다.
