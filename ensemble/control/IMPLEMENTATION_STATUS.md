@@ -29,7 +29,8 @@ Updated: 2026-07-28 KST
 | Unknown hard-stop test | pass | invalid code becomes `REVISE` |
 | External agent adapters | not ready | see `ADAPTER_STATUS.md` |
 | Fully unattended 4-agent loop | not running | adapters must pass contract first |
-| GitHub publication | not yet published | local branch only until safe push succeeds |
+| GitHub branch | published | `origin/codex/four-agent-local-bus` |
+| Draft pull request | not created | GitHub integration returned HTTP 403 |
 
 The state machine is functional without touching a product repository. No
 System1.5 training, deployment, external message, or GitHub remote mutation was
