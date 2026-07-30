@@ -1,0 +1,7 @@
+name = "cogni-os-orchestrator"
+compatibility_date = "2026-07-30"
+pages_build_output_dir = "./public"
+
+[vars]
+ENVIRONMENT = "production"
+SYSTEM_NAME = "Cogni-OS Orchestrator"

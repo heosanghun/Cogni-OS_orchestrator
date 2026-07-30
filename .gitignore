@@ -1,5 +1,11 @@
 # Local four-agent runtime. Durable decisions live under ensemble/ledger/.
 .ensemble-runtime/
+.cogni/
+.venv/
+scratch/
+__pycache__/
+*.egg-info/
+.pytest_cache/
 
 # Editor and operating-system noise.
 .DS_Store

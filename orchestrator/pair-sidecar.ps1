@@ -28,7 +28,10 @@ param(
     [string]$RunnerPath = (Join-Path $PSScriptRoot "pair-process-runner.ps1"),
     [ValidatePattern('^[0-9a-fA-F]{64}$')]
     [string]$RunnerSha256,
-    [string[]]$AllowedTargetRoots = @("C:\Project\System1.5"),
+    [string[]]$AllowedTargetRoots = @(
+        "C:\Project\System1.5",
+        "C:\Project\CTS"
+    ),
     [ValidateRange(1, 1440)]
     [int]$WaitTimeoutMinutes = 60,
     [ValidateRange(30, 3600)]
@@ -83,7 +86,10 @@ $script:AllowedPhases = @(
     "PAIR_SAFE_STOP"
 )
 $script:AllowedTargetRoots = @(
-    $AllowedTargetRoots | ForEach-Object {
+    @(
+        "C:\Project\System1.5",
+        "C:\Project\CTS"
+    ) + @($AllowedTargetRoots) | Sort-Object -Unique | ForEach-Object {
         [IO.Path]::GetFullPath($_).TrimEnd(
             [IO.Path]::DirectorySeparatorChar,
             [IO.Path]::AltDirectorySeparatorChar
@@ -1531,7 +1537,10 @@ function Assert-TargetUnchanged {
         throw (
             "Target snapshot changed. expected=" +
             [string]$State.target.snapshot_fingerprint +
-            " actual=" + [string]$current.snapshot_fingerprint
+            " actual=" + [string]$current.snapshot_fingerprint +
+            " status=" + [string]$current.status_sha256 +
+            " diff=" + [string]$current.tracked_diff_sha256 +
+            " untracked=" + [string]$current.untracked_manifest_sha256
         )
     }
 }

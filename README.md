@@ -1,75 +1,100 @@
-# System 1.5 & CTS 모니터링 프로젝트 리포트 (Monitoring Project)
+# Cogni-OS Orchestrator 🚀
 
-> **최종 갱신**: 2026-07-28 23:30 KST  
-> **저장소**: [heosanghun/monitoring_project](https://github.com/heosanghun/monitoring_project)  
-> **상태**: **Stage 1 DEQ 5,000 Step 재학습 완료 & 축 ④ 문항 변별력 147.4배 입증 완료**  
-
-> **기록 주의**: 아래 Stage 1/Stage 2 내용은 기존 커밋에 남겨진 당시의
-> 실험 보고 스냅샷이며 새 4-agent coordinator의 실시간 telemetry가 아닙니다.
-> 원시 산출물·코드·SHA를 실제 대상 저장소에서 다시 대조하기 전에는 독립
-> 재검증된 현재 상태로 해석하지 않습니다.
+**Cogni-OS**는 **Codex (지휘자 / Conductor)**와 **Antigravity (멀티에이전트 수행자 & 독립 검증자)** 간의 증거 기반 불변 원장(Evidence-First Ledger)을 바탕으로 동장하는 차세대 멀티에이전트 오케스트레이션 운영체제(OS)입니다.
 
 ---
 
-### 🎉 Stage 1 DEQ 재학습 완료 & 축 ④ 대형 학술적 발견 (Breakthrough)
+## 🌟 Key Features
 
-System 1.5 / CTS 프로젝트의 5,000 스텝 Stage 1 DEQ 연산자 재학습을 완주하고, **축 ④ (문항 변별력 재평가)** 대조 평가를 수립하여 대형 학술적 발견을 입증하였습니다.
-
----
-
-### 📊 축 ④ (문항 변별력) 실측 대조 결과 (F3-4 Breakthrough)
-
-| 평가 지표 | (a) Base Backbone (미학습) | (b) Retrained Stage 1 (5,000 Step 재학습) | 변동 (Diff) | 학술적 의의 |
-|---|---|---|---|---|
-| **$z_0$ cos med** | 0.2786 | 0.3251 | +0.0465 | 입력 세그먼트 초기 유사도 |
-| **$z^*$ cos med** | **0.6639** | **0.0022** | **-0.6617** | **미학습 수축 인력자 $\rightarrow$ 직교 탈상관** |
-| **cross-PROB ratio** | **0.4197 $\times$** | **147.4439 $\times$** | **+147.0242 $\times$** | **문항 간 변별력 147.4배 폭발적 획득** |
-| **norm ratio** | 16.06 | 33.06 | +17.00 | 고정점 노름 수축률 정상 유지 |
-| **eff_rank_med** | 30.27 | 30.33 | +0.06 | 유효 랭크 차원성 고차원 유지 |
-| **collapse_pairs** | 0 | 0 | 0 | 붕괴쌍 0개 (하드 가드 완전 통과) |
-| **conv_rate** | 100% | 100% | 0% | Picard 솔버 100% 수렴 |
-
-> 💡 **핵심 결론**:
-> 1. **미학습 DEQ 연산자**: 입력 문항의 차이와 무관하게 모든 표상을 공통 인력자 $z^* \approx 0.66$으로 당겨 뭉치게 만듦 (Cross-PROB ratio = $0.42\times$).
-> 2. **재학습 DEQ 연산자**: IFT 잔차 손실 학습을 통해 문항 고유 특성에 맞춰 고정점을 완전 직교 공간($z^* \text{ cos med} = \mathbf{0.0022}$)으로 분리해냄 (**Cross-PROB ratio = $\mathbf{147.44\times}$**).
-> 3. **축 ④ 완결**: 초기화 축 문제가 아니라 **"Stage 1 DEQ 연산자의 실제 학습 유무"**가 문항 변별력 획득의 유일한 원인이었음이 명백히 입증되었습니다.
+- **Codex Conductor & Antigravity Fleet Topology**:
+  - Claude를 완전히 배제하고, **Codex**가 오케스트레이터로서 작업을 분할 및 관리하며 **Antigravity**가 수행자(Executant) 및 독립 검증자(Verifier)로 동작합니다.
+- **Evidence-First Verification State Machine**:
+  - `Pending` ➔ `Claimed` ➔ `Running` ➔ `Submitted` ➔ `Verified` ➔ `Archived`
+  - 에이전트의 종료 코드나 텍스트 보고서에 의존하지 않고, SHA-256 증거 매니페스트 및 알려진 값(Known-answer) 검증을 거친 항목만 최종 승인합니다.
+- **Append-only HMAC Signed Evidence Ledger**:
+  - 모든 상태 변경 및 트랜잭션은 `events.jsonl`에 암호화 해시 체인 및 HMAC 서명으로 기록되어 조작이 불가능합니다.
+- **Real-Time Live Web Dashboard & Cloudflare Pages Integration**:
+  - 사용자 작업 진행률 (Progress %), 에이전트 토폴로지 Card, 태스크 파이프라인, 원장 타임라인을 한눈에 볼 수 있는 웹 대시보드가 탑재되어 있습니다.
+  - `wrangler.toml` 및 `public/`, `functions/api/snapshot.js` 지원으로 Cloudflare Pages / Workers에 바로 배포 가능합니다.
 
 ---
 
-### 🗂️ 보존된 당시 실행 기록: Stage 2 FWP PPO 재학습
+## 🚀 Quick Start
 
-- **프로세스**: `scripts/train_stage2_fwp_guarded.py`
-- **할당 GPU**: **GPU 1** (RTX A6000)
-- **입력 백본**: 5,000 스텝 IFT 재학습 및 문항 변별력(147.44배) 검증 완료된 Stage 1 DEQ 백본 (`stage1_last.pt`)
-- **출력 목표**: `/workspace/artifacts/stage2_retrained/stage2_meta_value.pt`
-- **기록 당시 진행률**: Step 90 / 1,000 PPO 롤아웃
-- **보존 로그**:
-  ```text
-  stage2 step=70/1000 loss=-0.0394 reward_mean=-0.0500
-  stage2 step=80/1000 loss=-0.0714 reward_mean=-0.0500
-  stage2 step=90/1000 loss=-0.0586 reward_mean=-0.0500
-  ```
+### 1. Installation
+
+Python 3.10 이상 환경에서 패키지를 설치합니다:
+
+```bash
+pip install -e .
+```
+
+### 2. Workspace Initialization
+
+Cogni-OS 워크스페이스를 초기화합니다:
+
+```bash
+cogni init ./cogni-workspace \
+  --name "Cogni-OS Production Workspace" \
+  --orchestrator codex \
+  --control-principal codex-conductor \
+  --model-family openai-codex \
+  --preset cogni-codex-antigravity
+```
+
+### 3. Creating & Executing Tasks
+
+Codex Conductor가 태스크를 추가하고, Antigravity 수행자가 작업을 수행합니다:
+
+```bash
+# 1. Codex Conductor adds a task
+cogni task add ./cogni-workspace \
+  --actor codex \
+  --id T-101 \
+  --owner antigravity \
+  --title "Implement Core Data Validation Engine" \
+  --description "Build robust validation pipeline"
+
+# 2. Antigravity claims and starts the task
+cogni task claim ./cogni-workspace --actor antigravity --id T-101
+cogni task start ./cogni-workspace --actor antigravity --id T-101 --lease-token "<TOKEN>"
+
+# 3. Antigravity submits report & evidence manifest
+cogni task submit ./cogni-workspace \
+  --actor antigravity \
+  --id T-101 \
+  --lease-token "<TOKEN>" \
+  --report ./cogni-workspace/reports/antigravity/T-101.md \
+  --evidence ./cogni-workspace/reports/antigravity/T-101.evidence.json
+
+# 4. Antigravity Verifier independently verifies
+cogni task verify ./cogni-workspace \
+  --actor antigravity-verifier \
+  --id T-101 \
+  --decision accept \
+  --note "Independent known-answer tests reproduced clean."
+```
+
+### 4. Running Operational Dashboard
+
+```bash
+cogni dashboard ./cogni-workspace --port 8484
+```
+
+웹 브라우저에서 `http://127.0.0.1:8484`에 접속하여 실시간 모니터링을 확인하세요.
 
 ---
 
-## 🤝 4-Agent Local Council
+## ☁️ Deploying to Cloudflare Pages
 
-이 저장소는 Antigravity·Cursor·Claude의 독립 자문과 Codex App의 단일
-실행을 조정하는 로컬 우선 협업 제어면을 포함합니다.
+프로젝트 루트 디렉토리에서 Cloudflare Pages로 배포할 수 있습니다:
 
-- 실시간 메시지·투표·상태 전이: `C:\comunity` 로컬
-- 검증된 결정·소수의견·체크포인트: 이 GitHub 저장소
-- 실행 규칙: 자문 3명 중 2명 승인, 객관적 테스트 통과, hard stop 0건
-- 코드 수정: 승인 후 Codex App 한 명만 수행
-- GitHub 게시: 매 대화가 아니라 검증된 이정표에서만 수행
+```bash
+npx wrangler pages deploy public --project-name cogni-os-orchestrator
+```
 
-시작 문서는 [`ensemble/README.md`](ensemble/README.md), 운영 프로토콜은
-[`ensemble/PROTOCOL.md`](ensemble/PROTOCOL.md), coordinator 사용법은
-[`orchestrator/README.md`](orchestrator/README.md)를 참고하십시오.
+---
 
-Antigravity와 Codex App만 먼저 연결하는 읽기 전용 빠른 대화는
-[`PAIR_FAST_START_KO.md`](PAIR_FAST_START_KO.md)를 사용합니다. 이 경로의
-`PAIR_CANDIDATE`는 4-agent 정족수나 코드 실행 승인이 아닙니다.
+## 📜 License
 
-> 현재 저장소는 협업 제어면입니다. 실제 소스가 다른 저장소에 있다면 각
-> 과제의 `target_workspace`로 명시하며, 기존 사용자 변경은 덮어쓰지 않습니다.
+Distributed under the MIT License. See `LICENSE` for details.

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cogni-os"
+version = "1.0.0"
+description = "Cogni-OS: Evidence-First Multi-Agent Orchestrator with Codex Conductor & Antigravity Fleet"
+readme = "README.md"
+authors = [
+    { name = "Heo Sanghun / Cogni-OS Council" }
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+cogni = "cogni_os.cli:main"
+cognios = "cogni_os.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

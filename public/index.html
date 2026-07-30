@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cogni-OS Orchestrator Control Plane</title>
+  <meta name="description" content="Evidence-First Multi-Agent Orchestration Operating System with Codex Conductor & Antigravity Fleet">
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon">CO</div>
+      <div>
+        <div class="brand-title">Cogni-OS Orchestrator</div>
+      </div>
+    </div>
+    <div class="system-status-pill">
+      <div class="pulse-dot"></div>
+      <span>SYSTEM OPERATIONAL</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Task Overall Completion Progress Bar -->
+    <div class="progress-card">
+      <div class="progress-header">
+        <div class="progress-title">전체 작업 진행률 (Overall Task Progress)</div>
+        <div class="progress-val" id="progress-val">0.0%</div>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+    </div>
+
+    <!-- Agent Topology & Task Pipeline -->
+    <div class="grid-2">
+      <!-- Agent Topology -->
+      <div class="panel">
+        <div class="panel-title">
+          <span>🤖 에이전트 토폴로지 (Agent Topology)</span>
+        </div>
+        <div class="agent-cards" id="agent-cards">
+          <!-- Dynamically filled by app.js -->
+        </div>
+      </div>
+
+      <!-- Task Pipeline Kanban Counts -->
+      <div class="panel">
+        <div class="panel-title">
+          <span>📊 태스크 파이프라인 (Task Pipeline)</span>
+        </div>
+        <div class="metrics-row">
+          <div class="metric-box">
+            <div class="metric-num" id="count-pending" style="color: var(--accent-amber);">0</div>
+            <div class="metric-lbl">Pending</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-num" id="count-running" style="color: var(--accent-cyan);">0</div>
+            <div class="metric-lbl">Running</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-num" id="count-submitted" style="color: var(--accent-purple);">0</div>
+            <div class="metric-lbl">Submitted</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-num" id="count-verified" style="color: var(--accent-green);">0</div>
+            <div class="metric-lbl">Verified</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Evidence Ledger Snapshot Panel -->
+    <div class="panel">
+      <div class="panel-title" style="justify-content: space-between;">
+        <span>🔒 불변 증거 원장 (Append-only Evidence Ledger)</span>
+        <span id="ledger-status" style="font-size: 13px; color: var(--accent-green);">Ledger: VERIFIED</span>
+      </div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-time">TIMESTAMP</div>
+          <div class="timeline-desc">
+            <div>Cryptographic HMAC Signature Hash-Chain Verified. All task state transitions are recorded with raw SHA-256 evidence logs.</div>
+            <div class="hash-code" id="ledger-hash">Head SHA-256: Genesis</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

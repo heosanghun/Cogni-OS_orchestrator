@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>연구 운영 콘솔 — CTS · System 1.5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0D1115;
+    --panel:#151A20;
+    --panel-2:#1B2128;
+    --line:#2A323C;
+    --line-soft:#212831;
+    --ink:#E6E9ED;
+    --ink-2:#98A2AE;
+    --ink-3:#616B77;
+    --amber:#E0A044;
+    --live:#3FB8A0;
+    --rust:#C25A44;
+    --violet:#8A7FC4;
+    --steel:#5C7A99;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:'IBM Plex Sans KR',system-ui,sans-serif;
+    line-height:1.6;padding:0 0 70px;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1200px;margin:0 auto;padding:0 26px}
+  .mono{font-family:'IBM Plex Mono',monospace}
+
+  /* ===== 출처 등급 배지 ===== */
+  .g{
+    display:inline-block;font-family:'IBM Plex Mono',monospace;
+    font-size:9px;letter-spacing:.09em;padding:1px 6px;
+    border-radius:2px;vertical-align:middle;white-space:nowrap;
+  }
+  .g-m{background:rgba(63,184,160,.15);color:var(--live)}
+  .g-r{background:rgba(92,122,153,.18);color:#8AA6C4}
+  .g-c{background:rgba(194,90,68,.16);color:var(--rust)}
+  .g-n{background:rgba(97,107,119,.14);color:var(--ink-3)}
+
+  /* ===== 헤더 ===== */
+  .masthead{border-bottom:1px solid var(--line);padding:36px 0 24px;margin-bottom:30px}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.22em;color:var(--ink-3);text-transform:uppercase;margin-bottom:13px}
+  .masthead h1{font-size:clamp(26px,4vw,42px);font-weight:700;letter-spacing:-.02em;line-height:1.14;margin-bottom:16px}
+  .masthead h1 em{font-style:normal;color:var(--amber)}
+  .lede{color:var(--ink-2);font-size:14.5px;max-width:64ch;font-weight:300}
+
+  .legend{
+    display:flex;flex-wrap:wrap;gap:16px;margin-top:22px;padding:13px 16px;
+    background:var(--panel);border:1px solid var(--line-soft);border-radius:3px;
+  }
+  .legend-item{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-2)}
+  .legend-note{width:100%;font-size:11.5px;color:var(--ink-3);border-top:1px solid var(--line-soft);padding-top:10px;margin-top:2px}
+
+  .stat-strip{display:flex;flex-wrap:wrap;margin-top:20px;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+  .stat{flex:1 1 140px;padding:13px 17px;border-right:1px solid var(--line);background:var(--panel)}
+  .stat:last-child{border-right:none}
+  .stat .k{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--amber);line-height:1.2}
+  .stat .v{font-size:11px;color:var(--ink-3);letter-spacing:.03em;margin-top:2px}
+
+  /* ===== 섹션 ===== */
+  section{margin-bottom:46px}
+  .sec-head{display:flex;align-items:baseline;gap:12px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:20px;flex-wrap:wrap}
+  .sec-head h2{font-size:18px;font-weight:600;letter-spacing:-.01em}
+  .sec-head .note{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-3);margin-left:auto}
+
+  /* ===== 관문 카드 (신규) ===== */
+  .gate-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:11px}
+  .gate{background:var(--panel);border:1px solid var(--line-soft);border-radius:3px;padding:14px 16px}
+  .gate.pass{border-left:2px solid var(--live)}
+  .gate.fail{border-left:2px solid var(--rust)}
+  .gate.none{border-left:2px solid var(--ink-3)}
+  .gate h4{font-size:12.5px;font-weight:500;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .gate .val{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:var(--ink);line-height:1.25}
+  .gate.pass .val{color:var(--live)}
+  .gate.none .val{color:var(--ink-3)}
+  .gate .crit{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-3);margin-top:4px}
+  .gate .why{font-size:11px;color:var(--ink-2);margin-top:8px;padding-top:8px;border-top:1px solid var(--line-soft);line-height:1.45}
+
+  /* ===== GPU ===== */
+  .gpu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}
+  .gpu{background:var(--panel);border:1px solid var(--line-soft);border-radius:3px;padding:13px 14px}
+  .gpu.protected{border-color:rgba(224,160,68,.4)}
+  .gpu.unknown{border-color:rgba(194,90,68,.5)}
+  .gpu.active{border-color:rgba(63,184,160,.5)}
+  .gpu-top{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .gpu-id{font-family:'IBM Plex Mono',monospace;font-size:14.5px;font-weight:600}
+  .gpu-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.07em;padding:2px 6px;border-radius:2px;text-transform:uppercase}
+  .tag-idle{background:rgba(97,107,119,.16);color:var(--ink-3)}
+  .tag-hold{background:rgba(224,160,68,.15);color:var(--amber)}
+  .tag-run{background:rgba(63,184,160,.15);color:var(--live)}
+  .tag-unk{background:rgba(194,90,68,.16);color:var(--rust)}
+  .gpu-temp{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-2)}
+  .meter{height:4px;background:var(--panel-2);border-radius:2px;overflow:hidden;margin-bottom:5px}
+  .meter i{display:block;height:100%;background:var(--steel);border-radius:2px;animation:grow .8s cubic-bezier(.2,.7,.3,1) both}
+  .meter i.warm{background:var(--amber)}
+  .meter i.live{background:var(--live)}
+  .meter i.unk{background:repeating-linear-gradient(90deg,var(--rust) 0 4px,transparent 4px 8px)}
+  .gpu-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-3);display:flex;justify-content:space-between;margin-bottom:8px}
+  .gpu-proj{font-size:11px;color:var(--ink-2);line-height:1.5;border-top:1px solid var(--line-soft);padding-top:7px}
+  .gpu-proj b{color:var(--ink);font-weight:500}
+
+  .callout{margin-top:13px;padding:12px 15px;background:rgba(194,90,68,.07);border-left:2px solid var(--rust);font-size:12.5px;color:var(--ink-2);line-height:1.55}
+  .callout b{color:var(--rust);font-weight:600}
+  .callout.info{background:rgba(92,122,153,.08);border-left-color:var(--steel)}
+  .callout.info b{color:#8AA6C4}
+
+  /* ===== 진행률 ===== */
+  .prog-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(390px,1fr));gap:16px}
+  .prog-card{background:var(--panel);border:1px solid var(--line-soft);border-radius:3px;padding:19px 20px 16px}
+  .prog-head{display:flex;align-items:baseline;gap:9px;margin-bottom:5px}
+  .prog-head h3{font-size:16.5px;font-weight:600}
+  .prog-head .pct{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:25px;font-weight:600;color:var(--amber)}
+  .prog-sub{font-size:11.5px;color:var(--ink-3);margin-bottom:14px}
+  .bigbar{height:6px;background:var(--panel-2);border-radius:3px;overflow:hidden;margin-bottom:17px}
+  .bigbar i{display:block;height:100%;background:linear-gradient(90deg,var(--steel),var(--amber));border-radius:3px;animation:grow 1.1s cubic-bezier(.2,.7,.3,1) both}
+  .step{display:grid;grid-template-columns:24px 1fr 42px;gap:9px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line-soft)}
+  .step:last-child{border-bottom:none}
+  .step-n{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--ink-3)}
+  .step-body .nm{font-size:12.5px;line-height:1.35;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .step-body .ds{font-size:10.5px;color:var(--ink-3);line-height:1.4;margin-top:1px}
+  .step-bar{grid-column:2/4;height:3px;background:var(--panel-2);border-radius:2px;overflow:hidden;margin-top:5px}
+  .step-bar i{display:block;height:100%;border-radius:2px;animation:grow .9s cubic-bezier(.2,.7,.3,1) both}
+  .i-done{background:var(--live)}.i-run{background:var(--amber)}.i-wait{background:var(--line)}
+  .step-pct{font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-align:right}
+  .step-pct.done{color:var(--live)}.step-pct.run{color:var(--amber)}.step-pct.wait{color:var(--ink-3)}
+
+  /* ===== 표 ===== */
+  .tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .tbl th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:500;padding:0 11px 9px 0;border-bottom:1px solid var(--line)}
+  .tbl td{padding:11px 11px 11px 0;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--ink-2);line-height:1.5}
+  .tbl td.nm{color:var(--ink);font-weight:500;white-space:nowrap}
+  .tbl td.num{font-family:'IBM Plex Mono',monospace;color:var(--ink)}
+  .tbl td.empty{color:var(--ink-3);font-family:'IBM Plex Mono',monospace}
+  .tbl tr.base td{background:rgba(224,160,68,.05)}
+  .tbl tr:last-child td{border-bottom:none}
+  .pill{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:2px;white-space:nowrap}
+  .p-run{background:rgba(63,184,160,.14);color:var(--live)}
+  .p-wait{background:rgba(97,107,119,.14);color:var(--ink-3)}
+  .p-hold{background:rgba(224,160,68,.14);color:var(--amber)}
+  .p-done{background:rgba(138,127,196,.16);color:var(--violet)}
+  .p-stop{background:rgba(194,90,68,.15);color:var(--rust)}
+
+  /* ===== 사다리 ===== */
+  .ladder{background:var(--panel);border:1px solid var(--line-soft);border-radius:3px;padding:20px 22px 18px}
+  .ladder-intro{font-size:12.5px;color:var(--ink-2);max-width:70ch;margin-bottom:17px}
+  .rung{display:grid;grid-template-columns:34px 1fr auto;gap:13px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-soft)}
+  .rung:last-child{border-bottom:none}
+  .rung-n{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-3)}
+  .rung-t{font-size:12.5px}
+  .rung.closed .rung-t{color:var(--ink-3);text-decoration:line-through;text-decoration-color:rgba(97,107,119,.5);text-decoration-thickness:1px}
+  .rung.open .rung-t{color:var(--ink);font-weight:500}
+  .rung.root .rung-t{color:var(--amber);font-weight:600}
+  .rung-s{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.05em;padding:2px 8px;border-radius:2px;white-space:nowrap}
+  .s-closed{background:rgba(97,107,119,.14);color:var(--ink-3)}
+  .s-open{background:rgba(224,160,68,.15);color:var(--amber)}
+  .s-root{background:rgba(194,90,68,.15);color:var(--rust)}
+
+  /* ===== 타임라인 ===== */
+  .tl{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));border:1px solid var(--line-soft);border-radius:3px;overflow:hidden}
+  .tl-col{padding:17px 18px 19px;border-right:1px solid var(--line-soft);background:var(--panel)}
+  .tl-col:last-child{border-right:none}
+  .tl-col.now{background:var(--panel-2)}
+  .tl-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--line-soft)}
+  .tl-col.now .tl-label{color:var(--amber)}
+  .tl-item{padding-left:14px;position:relative;margin-bottom:12px;font-size:12px;line-height:1.5}
+  .tl-item:last-child{margin-bottom:0}
+  .tl-item::before{content:'';position:absolute;left:0;top:7px;width:5px;height:5px;border-radius:50%;background:var(--ink-3)}
+  .tl-item.hit::before{background:var(--live)}
+  .tl-item.warn::before{background:var(--rust)}
+  .tl-item.act::before{background:var(--amber);box-shadow:0 0 0 3px rgba(224,160,68,.18)}
+  .tl-item .d{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--ink-3);display:block}
+  .tl-item b{font-weight:600;color:var(--ink)}
+  .tl-item span.txt{color:var(--ink-2)}
+
+  /* ===== 차단 항목 ===== */
+  .block-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:11px}
+  .block{background:var(--panel);border:1px solid var(--line-soft);border-radius:3px;padding:15px 16px}
+  .block.now{border-left:2px solid var(--rust)}
+  .block.chk{border-left:2px solid var(--amber)}
+  .block.dec{border-left:2px solid var(--steel)}
+  .block.ok{border-left:2px solid var(--live)}
+  .block .lv{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px}
+  .block h4{font-size:13px;font-weight:600;margin-bottom:7px}
+  .block p{font-size:11.5px;color:var(--ink-2);line-height:1.55}
+
+  /* ===== 거짓 초록불 ===== */
+  .green-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:11px}
+  .green-card{background:var(--panel);border:1px solid var(--line-soft);border-left:2px solid var(--rust);border-radius:3px;padding:13px 15px}
+  .green-card h4{font-size:12.5px;font-weight:600;margin-bottom:7px}
+  .green-card .lbl{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase}
+  .green-card .pass{font-size:11px;color:var(--live);margin-bottom:2px}
+  .green-card .real{font-size:11px;color:var(--ink-2)}
+
+  footer{border-top:1px solid var(--line);padding-top:18px;margin-top:40px;font-size:11px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:18px}
+
+  @keyframes grow{from{transform:scaleX(0);transform-origin:left}to{transform:scaleX(1)}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+  @media (max-width:640px){.wrap{padding:0 15px}.stat{flex:1 1 50%;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= 헤더 ================= -->
+  <div class="masthead">
+    <div class="eyebrow">연구 운영 콘솔 · 2026-07-28 · 학습 백본 부재 발견 · 축 ④ 판정 보류</div>
+    <h1>여덟 겹을 벗겨 원인에 닿았고,<br><em>이제 측정 도구를 검증합니다</em></h1>
+    <p class="lede">
+      System 1.5는 원인 확정 후 재학습에 진입했습니다. CTS는 축 ④ 판정 직전에
+      <b style="color:var(--rust)">측정에 쓰인 백본이 학습되지 않은 상태였음</b>이 드러나 재측정 단계로 돌아왔습니다 —
+      나쁜 소식이지만, 판정이 원장에 확정되기 전에 잡혔습니다.
+    </p>
+
+    <div class="legend">
+      <span class="legend-item"><span class="g g-m">측정</span> 도구 출력 직접 확인</span>
+      <span class="legend-item"><span class="g g-r">보고</span> 세션 보고, 미검증</span>
+      <span class="legend-item"><span class="g g-c">충돌</span> 출처 간 불일치</span>
+      <span class="legend-item"><span class="g g-n">없음</span> 데이터 자체가 없음</span>
+      <span class="legend-note">
+        핵심 규율은 “측정하지 않은 것을 주장하지 않는다”입니다. 빈칸은 미완이 아니라 데이터 없음이며 추정치로 채우지 않습니다.
+        추가 규칙 <b>W5</b>: 모든 기준값에 출처(체크포인트 SHA · deq_map_mode · 데이터 경로)를 명시합니다.
+      </span>
+    </div>
+
+    <div class="stat-strip">
+      <div class="stat"><div class="k">6일</div><div class="v">연속 진단</div></div>
+      <div class="stat"><div class="k">5유형</div><div class="v">실패 패턴 분류</div></div>
+      <div class="stat"><div class="k">4건</div><div class="v">거짓 초록불</div></div>
+      <div class="stat"><div class="k">4.14e-4</div><div class="v">V2 ΔW · 학습 성립</div></div>
+      <div class="stat"><div class="k">보류</div><div class="v">축 ④ 판정 상태</div></div>
+      <div class="stat"><div class="k">0바이트</div><div class="v">호스트 M500 (복구됨)</div></div>
+    </div>
+  </div>
+
+  <!-- ================= 최우선 발견 (신규) ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>축 ④ 판정이 보류된 이유</h2>
+      <span class="note">2026-07-28 확인 <span class="g g-m" style="margin-left:6px">측정</span></span>
+    </div>
+
+    <div class="callout" style="margin-top:0">
+      <b>정본 프로브가 학습되지 않은 백본으로 실행됐습니다.</b><br><br>
+      <span class="mono">ksprobe_orig.py</span>가 참조하는 체크포인트 경로
+      <span class="mono">artifacts/stage1_r2v2/stage1_last.pt</span>가 컨테이너에 존재하지 않아
+      자동으로 베이스 백본으로 폴백됐습니다. 즉 <b>KS-probe 8조건 전부가 Jacobian 정규화도 5000스텝 학습도
+      거치지 않은 연산자에서 측정</b>된 값입니다.
+      <br><br>
+      우리가 답하려던 질문은 “초기화 축으로 문항 변별을 얻을 수 있는가”였는데,
+      실제로 잰 것은 “<b>학습되지 않은</b> 연산자에서 초기화를 바꾸면 어떻게 되는가”였습니다.
+      두 질문의 답이 같을 이유가 없습니다.
+    </div>
+
+    <div class="gate-row" style="margin-top:14px">
+      <div class="gate none">
+        <h4>측정 자체 <span class="g g-m">측정</span></h4>
+        <div class="val">유효</div>
+        <div class="crit">조건 일관 · 회귀 관문 성립</div>
+        <div class="why">같은 조건에서 나온 값들이므로 파이프라인 검증용 기준으로는 계속 쓸 수 있습니다.</div>
+      </div>
+      <div class="gate fail">
+        <h4>축 ④ 판정 근거 <span class="g g-c">무효</span></h4>
+        <div class="val">재측정 필요</div>
+        <div class="crit">학습 백본 미사용</div>
+        <div class="why">기존 판정(미결·배제)은 전부 보류로 되돌렸습니다. 학습 백본에서 다시 재야 합니다.</div>
+      </div>
+      <div class="gate none">
+        <h4>다음 관문 <span class="g g-n">진행 중</span></h4>
+        <div class="val">A0</div>
+        <div class="crit">학습 백본 확보</div>
+        <div class="why">d6046bbc(v2 5000스텝) → 317de5ab → eee5ebbe 순으로 탐색. 없으면 “판정 불가”로 종결.</div>
+      </div>
+      <div class="gate pass">
+        <h4>규칙 제정 <span class="g g-m">적용</span></h4>
+        <div class="val">W4 · W5</div>
+        <div class="crit">회귀 관문 + 출처 명시</div>
+        <div class="why">W4가 제정 직후 <span class="mono">non_existent.pt</span> 사례를 즉시 포착했습니다.</div>
+      </div>
+    </div>
+
+    <div class="callout info" style="margin-top:12px">
+      <b>이 발견은 역설적으로 희망적입니다.</b>
+      축 ④가 미달했던 이유가 “초기화 축의 한계”가 아니라 “학습되지 않은 연산자를 썼기 때문”일 수 있습니다.
+      γ 발산을 잡고 5000스텝 학습한 백본은 다른 거동을 보일 가능성이 있습니다.
+    </div>
+  </section>
+
+  <!-- ================= V2 관문 (신규) ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>System 1.5 · V2 관문 판정</h2>
+      <span class="note">사전등록 기준으로만 판정 · 손실값은 근거 아님</span>
+    </div>
+
+    <div class="gate-row">
+      <div class="gate pass">
+        <h4>scale_projs ΔW <span class="g g-m">측정</span></h4>
+        <div class="val">4.135e-04</div>
+        <div class="crit">기준 &gt; 1e-4 · step 50→100</div>
+        <div class="why">이전 4,400스텝에서는 정확히 0.000e+00이었습니다. 유한한 값이 나왔다는 것 자체가 판정입니다.</div>
+      </div>
+
+      <div class="gate none">
+        <h4>단조 증가 <span class="g g-n">없음</span></h4>
+        <div class="val">판정 불가</div>
+        <div class="crit">체크포인트 2개뿐</div>
+        <div class="why">구간 변위는 0→50 : 2.13e-3, 50→100 : 4.14e-4로 감소했습니다. 초기 안정화로 해석 가능하나, 누적 변위 궤적이 없어 단조성은 미검증입니다.</div>
+      </div>
+
+      <div class="gate pass">
+        <h4>input_proj 이동 <span class="g g-m">측정</span></h4>
+        <div class="val">1.287e-02</div>
+        <div class="crit">L2 shift · weight max_diff 4.43e-5</div>
+        <div class="why">우려했던 “게이트가 상류 grad를 막아 절반만 학습” 시나리오는 발생하지 않았습니다.</div>
+      </div>
+
+      <div class="gate pass">
+        <h4>lora_B 로드 <span class="g g-m">측정</span></h4>
+        <div class="val">12 / 12</div>
+        <div class="crit">|max| 3.524e-2 · V1 관문</div>
+        <div class="why">키 재매핑 후 런타임 가중치가 전부 살아났습니다. 이전에는 516개가 조용히 무시됐습니다.</div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <b>손실값은 통과 근거가 아닙니다.</b>
+      V2 스모크의 kl 8.7452 / mse 9,324.5는 실패했던 4,400스텝의 범위(kl 8.5–10.4 / mse 9,000–10,300)와 겹칩니다.
+      그때도 손실은 계속 찍혔고 체크포인트도 저장됐습니다. 판정은 오직 ΔW로 합니다 — 이것이 다섯 번째 거짓 초록불이 될 뻔한 지점이었습니다.
+    </div>
+  </section>
+
+  <!-- ================= 진행률 ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>단계별 진행률</h2>
+      <span class="note">단계 수치는 세션 보고 기준 · 실측 항목은 배지로 표시</span>
+    </div>
+
+    <div class="prog-cols">
+      <!-- System 1.5 -->
+      <div class="prog-card">
+        <div class="prog-head"><h3>System 1.5</h3><span class="pct">95%</span></div>
+        <div class="prog-sub">V3 본 재학습 진행 중 · GPU 0 · 목표 ICLR 2027</div>
+        <div class="bigbar"><i style="width:95%"></i></div>
+
+        <div class="step">
+          <span class="step-n">01</span>
+          <div class="step-body"><div class="nm">코드 무결성 검증 <span class="g g-r">보고</span></div><div class="ds">덮어쓰기 회귀 방지, 74줄 가산 확인</div></div>
+          <span class="step-pct done">100</span>
+          <div class="step-bar"><i class="i-done" style="width:100%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">02</span>
+          <div class="step-body"><div class="nm">스케일 가설 검증 <span class="g g-r">보고</span></div><div class="ds">50배 가설 반증, 기준값 1.0 복원</div></div>
+          <span class="step-pct done">100</span>
+          <div class="step-bar"><i class="i-done" style="width:100%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">03</span>
+          <div class="step-body"><div class="nm">grad = 0 원인 규명 <span class="g g-m">측정</span></div><div class="ds">키 접두사 불일치 → 516개 전량 무시</div></div>
+          <span class="step-pct done">100</span>
+          <div class="step-bar"><i class="i-done" style="width:100%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">04</span>
+          <div class="step-body"><div class="nm">키 재매핑 + 하드 가드 <span class="g g-m">측정</span></div><div class="ds">V1 관문 통과 · lora_B 12/12 로드</div></div>
+          <span class="step-pct done">100</span>
+          <div class="step-bar"><i class="i-done" style="width:100%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">05</span>
+          <div class="step-body"><div class="nm">100스텝 스모크 <span class="g g-m">측정</span></div><div class="ds">ΔW 4.135e-4 · 단조성만 미검증</div></div>
+          <span class="step-pct done">100</span>
+          <div class="step-bar"><i class="i-done" style="width:100%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">06</span>
+          <div class="step-body"><div class="nm">V3 본 재학습 <span class="g g-r">보고</span></div><div class="ds">tmux detached · 신규 경로 · 성능 측정 금지</div></div>
+          <span class="step-pct run">진행</span>
+          <div class="step-bar"><i class="i-run" style="width:22%"></i></div>
+        </div>
+      </div>
+
+      <!-- CTS -->
+      <div class="prog-card">
+        <div class="prog-head"><h3>CTS</h3><span class="pct">75%</span></div>
+        <div class="prog-sub">축 ④ 판정 보류 · 학습 백본 재측정 필요 · 목표 NeurIPS 2027</div>
+        <div class="bigbar"><i style="width:75%"></i></div>
+
+        <div class="step">
+          <span class="step-n">01</span>
+          <div class="step-body"><div class="nm">정본 프로브 구축 <span class="g g-r">보고</span></div><div class="ds">세션 간 조건 불일치 차단</div></div>
+          <span class="step-pct done">100</span>
+          <div class="step-bar"><i class="i-done" style="width:100%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">02</span>
+          <div class="step-body"><div class="nm">스케일 스윕 A/B/C/D <span class="g g-r">보고</span></div><div class="ds">98.68배 수정이 최악임을 확인, 롤백</div></div>
+          <span class="step-pct done">100</span>
+          <div class="step-bar"><i class="i-done" style="width:100%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">03</span>
+          <div class="step-body"><div class="nm">디코더 건강도 검증 <span class="g g-r">보고</span></div><div class="ds">디코더 무죄 · 문제는 잠재 투영에 국한</div></div>
+          <span class="step-pct done">100</span>
+          <div class="step-bar"><i class="i-done" style="width:100%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">04</span>
+          <div class="step-body"><div class="nm">KS-probe 8조건 <span class="g g-c">조건 무효</span></div><div class="ds">완주했으나 base backbone 기준 — 판정 근거 불성립</div></div>
+          <span class="step-pct run">재측정</span>
+          <div class="step-bar"><i class="i-run" style="width:40%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">05</span>
+          <div class="step-body"><div class="nm">중앙값 소급 재계산 <span class="g g-m">측정</span></div><div class="ds">통과선 0.0780 → 0.0829 재정의 · B4 붕괴쌍 발견</div></div>
+          <span class="step-pct done">100</span>
+          <div class="step-bar"><i class="i-done" style="width:100%"></i></div>
+        </div>
+        <div class="step">
+          <span class="step-n">06</span>
+          <div class="step-body"><div class="nm">학습 백본 확보 → 재판정 <span class="g g-n">진행 중</span></div><div class="ds">A0 탐색 · 없으면 판정 불가로 종결</div></div>
+          <span class="step-pct wait">A0</span>
+          <div class="step-bar"><i class="i-run" style="width:15%"></i></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= KS-probe (신규) ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>CTS KS-probe · 8조건 완주</h2>
+      <span class="note" style="color:var(--rust)">전 조건 base backbone 기준 — 학습 백본 미측정 <span class="g g-c" style="margin-left:6px">판정 보류</span></span>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width:100px">조건</th>
+          <th style="width:70px">z0</th>
+          <th style="width:78px">z* 중앙</th>
+          <th style="width:66px">평균</th>
+          <th style="width:60px">배율</th>
+          <th style="width:74px">rank</th>
+          <th style="width:70px">음수쌍</th>
+          <th style="width:62px">수렴</th>
+          <th>판정 기여</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="nm">K=8 rand</td><td class="num">1.0000</td><td class="num">0.5009</td><td class="empty">0.5146</td><td class="num">2.00</td><td class="empty">1.91</td><td class="empty">0/66</td><td class="empty">8/12</td><td>칸을 줄이자 오히려 악화</td></tr>
+        <tr><td class="nm">K=8 seg</td><td class="num">0.5634</td><td class="num">0.2727</td><td class="empty">0.2744</td><td class="num">2.07</td><td class="empty">1.29</td><td class="empty">13/66</td><td class="empty">6/12</td><td>rank 최저·수렴 최악</td></tr>
+        <tr><td class="nm">K=16 rand</td><td class="num">1.0000</td><td class="num">0.1852</td><td class="empty">0.1920</td><td class="num" style="color:var(--live);font-weight:600">5.40</td><td class="empty">2.66</td><td class="empty">5/66</td><td class="empty">12/12</td><td><b style="color:var(--live)">배율 최고</b> — 단 출발점 1.0</td></tr>
+        <tr><td class="nm" style="color:var(--amber)">K=16 seg</td><td class="num">0.4619</td><td class="num" style="color:var(--amber);font-weight:600">0.1234</td><td class="empty">0.1362</td><td class="num">3.74</td><td class="empty">2.44</td><td class="empty">14/66</td><td class="empty">10/12</td><td><b style="color:var(--amber)">스윕 최선</b> → judge-20 진출</td></tr>
+        <tr><td class="nm">K=32 rand</td><td class="num">1.0000</td><td class="num">0.2434</td><td class="empty">0.2368</td><td class="num">4.11</td><td class="empty">4.84</td><td class="empty">0/66</td><td class="empty">11/12</td><td>참조</td></tr>
+        <tr><td class="nm">K=32 seg</td><td class="num">0.3608</td><td class="num">0.1891</td><td class="empty">0.1756</td><td class="num">1.91</td><td class="empty">4.26</td><td class="empty">7/66</td><td class="empty">11/12</td><td>배율 최저</td></tr>
+        <tr><td class="nm">K=64 rand</td><td class="num">1.0000</td><td class="num">0.4265</td><td class="empty">0.4326</td><td class="num">2.34</td><td class="empty">6.55</td><td class="empty">0/66</td><td class="empty">10/12</td><td>난수 초기화의 바닥값</td></tr>
+        <tr class="base"><td class="nm">K=64 seg</td><td class="num" style="color:var(--live);font-weight:600">0.3290</td><td class="num">0.1482</td><td class="empty">0.1432</td><td class="num">2.22</td><td class="empty">5.70</td><td class="empty">3/66</td><td class="empty">12/12</td><td><b style="color:var(--live)">출발점 최저</b> · 이전 기준선</td></tr>
+        <tr style="border-top:2px solid var(--line)"><td class="nm" style="color:var(--amber)">FINAL<br>K=16 seg</td><td class="num">0.4660</td><td class="num" style="color:var(--rust);font-weight:600">0.1095</td><td class="empty">0.1412</td><td class="num">4.26</td><td class="empty">2.12</td><td class="empty">58/190</td><td class="empty">17/20</td><td><b style="color:var(--rust)">judge-20 미달</b> — 통과선 대비 1.32배<br><span style="color:var(--live)">붕괴쌍 0 · max cos 0.9093</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout" style="margin-top:15px">
+      <b>이 표의 모든 수치는 base backbone 기준입니다.</b>
+      측정 자체는 조건이 일관돼 유효하고 회귀 관문 기준으로 계속 쓸 수 있지만,
+      <b>축 ④ 판정의 근거로는 성립하지 않습니다</b>. 학습 백본에서 재측정한 뒤에야 판정이 가능합니다.
+      아래 해석들(퇴화 가설 기각, B4 판정 제외)도 같은 조건 안에서만 유효합니다.
+    </div>
+
+    <div class="callout info" style="margin-top:11px">
+      <b>퇴화 인공물 가설 기각</b> <span class="g g-m">측정</span> —
+      FINAL의 60%가 rank&lt;2였지만 그룹별로 저rank 0.1012 · 고rank <b>0.1248</b>로 차이가 0.024에 불과합니다.
+      붕괴쌍은 <b>0개</b>(최대 코사인 0.9093), 문항 길이가 2배(102.6 vs 52.3)인데도 값이 낮아져 길이 편향도 없습니다.
+    </div>
+
+    <div class="callout" style="margin-top:11px">
+      <b>B4는 판정에서 제외</b> <span class="g g-m">측정</span> —
+      중앙값 0.0793으로 수치상 통과였으나 <b>최대 코사인 0.9992짜리 붕괴쌍 3개</b> 실재(기준 ≤2/190 위배).
+      재현 실패 이력(12문항 0.0175 → 20문항 0.0797, 미세 스윕 ±0.05 비재현)과도 일관됩니다.
+    </div>
+  </section>
+
+  <!-- ================= 조합 가설 (신규) ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>축 ④ 미결 — 아직 시험하지 않은 조합</h2>
+      <span class="note">사후 가설 · 복귀 후 결정 사안</span>
+    </div>
+
+    <div class="gate-row">
+      <div class="gate pass">
+        <h4>출발점 최저 <span class="g g-m">측정</span></h4>
+        <div class="val">0.3290</div>
+        <div class="crit">K=64 seg · z0 중앙값</div>
+        <div class="why">문제 정보로 초기화하면 출발점이 낮아집니다. 다만 이 조건의 배율은 2.22배로 낮습니다.</div>
+      </div>
+      <div class="gate pass">
+        <h4>배율 최고 <span class="g g-m">측정</span></h4>
+        <div class="val">5.40×</div>
+        <div class="crit">K=16 rand · 탈상관 배율</div>
+        <div class="why">칸을 줄이면 연산자가 더 크게 벌립니다. 다만 이 조건의 출발점은 1.0으로 최악입니다.</div>
+      </div>
+      <div class="gate none">
+        <h4>산술 조합 <span class="g g-n">미측정</span></h4>
+        <div class="val">0.0609</div>
+        <div class="crit">0.3290 ÷ 5.40 · 통과선 이하</div>
+        <div class="why">두 성질을 동시에 갖는 조건이 존재한다면 통과합니다. 사후 조합이며 구성 가능한지는 미확인입니다.</div>
+      </div>
+      <div class="gate none">
+        <h4>트레이드오프 여부 <span class="g g-m">측정</span></h4>
+        <div class="val">r = +0.19</div>
+        <div class="crit">세그먼트 4조건 상관</div>
+        <div class="why">배타적 관계라면 강한 음수여야 했습니다. 다만 4점 상관은 신뢰구간이 넓어 “독립”을 입증하지는 못합니다.</div>
+      </div>
+    </div>
+
+    <div class="callout info" style="margin-top:14px">
+      <b>정확한 서술은 “트레이드오프의 증거가 없다”입니다.</b>
+      낮은 출발점을 만드는 기전(세그먼트 초기화)과 높은 배율을 만드는 기전(칸 축소)이 배타적이지 않다면, 둘을 동시에 최적화한 조건이 존재할 수 있습니다.
+      그러나 K=16에서는 세그먼트 초기화가 출발점을 0.4619로 되돌렸습니다 — 두 기전이 왜 서로를 방해했는지가 조합 실험 설계의 출발점입니다.
+      <br><br>
+      <b style="color:var(--amber)">따라서 축 ④는 “닫힘”도 “열림”도 아닌 미결(Unresolved) 상태로 보존합니다.</b>
+      사전등록 S-B의 “마지막 1회”에 해당하며, 조합 실험 여부는 복귀 후 결정합니다.
+    </div>
+  </section>
+
+  <!-- ================= 사다리 ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>CTS 설계 공간 — 무엇을 닫았고 무엇이 남았나</h2>
+      <span class="note">축별 독립 시험</span>
+    </div>
+    <div class="ladder">
+      <p class="ladder-intro">
+        AI가 문제를 풀지 못하는 이유를 찾기 위해 정보를 실을 통로를 네 개 상정하고 하나씩 시험했습니다.
+        세 개는 실측으로 닫혔고, 네 번째가 지금 시험 중입니다.
+      </p>
+      <div class="rung closed"><span class="rung-n">축 ①</span><span class="rung-t">정보 라우팅 — 64칸이 문제의 서로 다른 부분을 보게 한다</span><span class="rung-s s-closed">닫힘 · 천장 불변</span></div>
+      <div class="rung closed"><span class="rung-n">축 ②</span><span class="rung-t">반복 깊이 — 계산을 덜 반복해 정보를 보존한다</span><span class="rung-s s-closed">닫힘 · 남은 건 노이즈</span></div>
+      <div class="rung closed"><span class="rung-n">축 ③</span><span class="rung-t">칸 개수 — 잠재 슬롯을 늘리거나 줄인다</span><span class="rung-s s-closed">닫힘 · 포화 후 붕괴</span></div>
+      <div class="rung open"><span class="rung-n">축 ④</span><span class="rung-t">초기화 — 난수 대신 문제 자체로 계산을 시작한다</span><span class="rung-s s-open">판정 보류 · 백본 재측정</span></div>
+      <div class="rung root"><span class="rung-n">근본</span><span class="rung-t">AI가 문제가 아니라 초기 난수의 함수를 계산하고 있었다</span><span class="rung-s s-root">자유도 163,840 : 2,560</span></div>
+    </div>
+    <div class="callout" style="margin-top:13px">
+      <b>축 ①~③의 배제도 재검토 대상입니다.</b>
+      이 세 축의 실험이 어느 백본에서 수행됐는지 확인되지 않았습니다. base backbone이었다면 같은 문제를 안고 있고,
+      학습 백본이었다면 그대로 유효합니다 — 각 축의 실행 기록을 W5 형식(체크포인트 SHA)으로 소급 확인해야 합니다.
+      축 ④는 base backbone 사용이 확인됐으므로 판정 보류 상태입니다.
+    </div>
+  </section>
+
+  <!-- ================= GPU ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>GPU 계기판</h2>
+      <span class="note">RTX A6000 48GB × 8 · Quadro-Ampere-05 <span class="g g-m" style="margin-left:6px">측정</span></span>
+    </div>
+
+    <div class="gpu-grid">
+      <div class="gpu active">
+        <div class="gpu-top"><span class="gpu-id">GPU 0</span><span class="gpu-tag tag-run">작업</span><span class="gpu-temp">35°C</span></div>
+        <div class="meter"><i class="live" style="width:38%"></i></div>
+        <div class="gpu-meta"><span>V3 재학습 진행</span><span>30 / 49,140 MiB (표 시점)</span></div>
+        <div class="gpu-proj"><b>System 1.5 · fwp_v3_full</b> — tmux detached. system3 · equiphase 컨테이너 병존</div>
+      </div>
+
+      <div class="gpu protected">
+        <div class="gpu-top"><span class="gpu-id">GPU 1</span><span class="gpu-tag tag-hold">불가침</span><span class="gpu-temp">35°C</span></div>
+        <div class="meter"><i class="warm" style="width:2%"></i></div>
+        <div class="gpu-meta"><span>사용률 0%</span><span>19 / 49,140 MiB</span></div>
+        <div class="gpu-proj"><b>System 2.5</b> — 컨테이너 생존. 다른 작업 배치 금지</div>
+      </div>
+
+      <div class="gpu">
+        <div class="gpu-top"><span class="gpu-id">GPU 2</span><span class="gpu-tag tag-idle">유휴</span><span class="gpu-temp">35°C</span></div>
+        <div class="meter"><i style="width:2%"></i></div>
+        <div class="gpu-meta"><span>사용률 0%</span><span>19 / 49,140 MiB</span></div>
+        <div class="gpu-proj">전부 종료 — 배치 가능</div>
+      </div>
+
+      <div class="gpu">
+        <div class="gpu-top"><span class="gpu-id">GPU 3</span><span class="gpu-tag tag-idle">유휴</span><span class="gpu-temp">36°C</span></div>
+        <div class="meter"><i style="width:2%"></i></div>
+        <div class="gpu-meta"><span>사용률 0%</span><span>19 / 49,140 MiB</span></div>
+        <div class="gpu-proj"><b>System 1.5</b> 진단 수행처 · Equiphase 일시정지 상주</div>
+      </div>
+
+      <div class="gpu">
+        <div class="gpu-top"><span class="gpu-id">GPU 4</span><span class="gpu-tag tag-idle">유휴</span><span class="gpu-temp">34°C</span></div>
+        <div class="meter"><i style="width:2%"></i></div>
+        <div class="gpu-meta"><span>사용률 0%</span><span>19 / 49,140 MiB</span></div>
+        <div class="gpu-proj">DEQ Revival 컨테이너 상주 — 연산 없음</div>
+      </div>
+
+      <div class="gpu">
+        <div class="gpu-top"><span class="gpu-id">GPU 5</span><span class="gpu-tag tag-idle">유휴</span><span class="gpu-temp">34°C</span></div>
+        <div class="meter"><i style="width:2%"></i></div>
+        <div class="gpu-meta"><span>사용률 0%</span><span>19 / 49,140 MiB</span></div>
+        <div class="gpu-proj">DEQ Revival 컨테이너 상주 — 연산 없음</div>
+      </div>
+
+      <div class="gpu active">
+        <div class="gpu-top"><span class="gpu-id">GPU 6</span><span class="gpu-tag tag-run">재측정</span><span class="gpu-temp">37°C</span></div>
+        <div class="meter"><i class="live" style="width:30%"></i></div>
+        <div class="gpu-meta"><span>A0 · 학습 백본 탐색</span><span>13 / 49,140 MiB (직전)</span></div>
+        <div class="gpu-proj"><b>CTS 축 ④ 재측정</b> — KS-probe 완주 후 학습 백본 확보 단계</div>
+      </div>
+
+      <div class="gpu">
+        <div class="gpu-top"><span class="gpu-id">GPU 7</span><span class="gpu-tag tag-idle">유휴</span><span class="gpu-temp">35°C</span></div>
+        <div class="meter"><i style="width:2%"></i></div>
+        <div class="gpu-meta"><span>사용률 0%</span><span>19 / 49,140 MiB</span></div>
+        <div class="gpu-proj"><b>System 4</b> — 논문 수정 작업, 연산 불요</div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <b>GPU 6 충돌 해소.</b>
+      <span class="mono">nvidia-smi -i 6</span> 직접 조회와 로그 타임스탬프(7/27 20:20)로 확인한 결과, KS-probe는 8조건을 완주하고 정상 종료(<span class="mono">[KSPROBE] DONE</span>)했습니다.
+      죽거나 꼬인 것이 아니라 <b>끝나서 비어 있는 상태</b>였고, 앞선 불일치는 측정 시점의 시차였습니다.
+      완료 예정 시각은 여전히 산출 근거가 없어 비워 둡니다 — 컨테이너 시작 시각·체크포인트 mtime을 수집하면 채울 수 있습니다.
+    </div>
+  </section>
+
+  <!-- ================= 차단 항목 (신규) ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>지금 막혀 있는 것</h2>
+      <span class="note">우선순위 순</span>
+    </div>
+    <div class="block-grid">
+      <div class="block ok">
+        <div class="lv">부분 해소</div>
+        <h4>공개 저장소에 서버 자격증명</h4>
+        <p>CTS · SYS 시리즈 전 저장소를 <b>private으로 전환 완료</b>. 추가 확산은 차단됐습니다. 다만 공개 기간의 유출은 되돌릴 수 없으므로 비밀번호 교체는 여전히 열린 선택이고, 코드 내 자격증명 제거는 재공개 전에 필요합니다.</p>
+      </div>
+      <div class="block now">
+        <div class="lv">즉시</div>
+        <h4>RESULTS.md의 목표치 배치</h4>
+        <p>상단 표가 목표 수치인데 결과처럼 놓여 있습니다. 이번 사이클이 정확히 그 문제로 시작됐습니다. private 전환으로 급박함은 줄었지만 한 줄 주석은 여전히 필요합니다.</p>
+      </div>
+      <div class="block now">
+        <div class="lv">최우선</div>
+        <h4>학습 백본 확보 (A0)</h4>
+        <p>정본 프로브가 참조한 <span class="mono">stage1_r2v2/stage1_last.pt</span>가 컨테이너에 없습니다. d6046bbc(v2 5000스텝) → 317de5ab → eee5ebbe 순으로 탐색하고, 없으면 축 ④는 “학습 백본 부재로 판정 불가”로 종결합니다.</p>
+      </div>
+      <div class="block chk">
+        <div class="lv">확인</div>
+        <h4>축 ④ 학습 백본 재측정</h4>
+        <p>A0 통과 시 base backbone과 학습 백본에서 K=64 seg를 나란히 측정합니다. 전자로 파이프라인을 검증하고 후자로 판정하며, 통과선도 학습 백본 기준으로 재정의해야 합니다.</p>
+      </div>
+      <div class="block ok">
+        <div class="lv">해소</div>
+        <h4>호스트 M500 데이터 0바이트</h4>
+        <p>정본이 읽는 <span class="mono">/home/shoon/cts/data/math500/test.jsonl</span>이 비어 있었습니다. 500행 복구 완료. 이후 모든 프로브가 단일 경로를 쓰도록 설정 파일화가 남았습니다.</p>
+      </div>
+      <div class="block dec">
+        <div class="lv">판단</div>
+        <h4>CI 초록불 복구 경로</h4>
+        <p>import 두 개를 고쳐도 안 됩니다. 뒤에 21 failed / 11 errors가 있고, 11건은 전부 .gitignore된 데이터셋 부재라 CI에 존재할 수 없습니다. skip 마커 · 픽스처 · 다운로드 스텝 중 선택이 필요하고, skip을 넣으면 진짜 누락이 조용한 초록불이 됩니다.</p>
+      </div>
+      <div class="block ok">
+        <div class="lv">해소됨</div>
+        <h4>System 1.5 grad = 0 기전</h4>
+        <p>근본 원인은 키 접두사 불일치, 하류 기전은 lora_B = 0 → ΔW = 0 → grad 0. 재매핑과 하드 가드로 닫혔고 V2 관문이 실측으로 통과했습니다.</p>
+      </div>
+      <div class="block dec">
+        <div class="lv">판단</div>
+        <h4>k/v 오버레이 부재</h4>
+        <p>Gemma-4 공유 KV 구조상 k/v 모듈이 아예 없어 설계 의도의 1/3(q만)이 작동합니다. 이대로 갈지 구조를 바꿀지는 복귀 후 결정 사안입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CTS 타임라인 ================= -->
+  <section>
+    <div class="sec-head"><h2>CTS — 과거 · 현재 · 최종</h2><span class="note">Cognitive Tree Search</span></div>
+    <div class="tl">
+      <div class="tl-col">
+        <div class="tl-label">지나온 길</div>
+        <div class="tl-item warn"><span class="d">7/23</span><b>메타리뷰 3 / 2 / 2</b><br><span class="txt">리뷰어 세 명 모두 게재 반대</span></div>
+        <div class="tl-item warn"><span class="d">7/23–24</span><b>전수 검증</b><br><span class="txt">미실행 수치·하네스 결함·기전 미작동 발견</span></div>
+        <div class="tl-item hit"><span class="d">7/24 14:05</span><b>자진 철회 완료</b><br><span class="txt">공저자 만장일치, 탈락 이력 없음</span></div>
+        <div class="tl-item hit"><span class="d">Phase 0</span><b>측정 기반 복구</b><br><span class="txt">채점기 13/13, 무결성 가드, 프롬프트 동결</span></div>
+        <div class="tl-item hit"><span class="d">Phase 1</span><b>발산 원인 규명·수리</b><br><span class="txt">미학습 파라미터 → Jacobian 정규화로 안정화</span></div>
+        <div class="tl-item warn"><span class="d">관문</span><b>G1 / G2 실패</b><br><span class="txt">잠재→텍스트가 여전히 무의미한 출력</span></div>
+      </div>
+      <div class="tl-col now">
+        <div class="tl-label">지금 하는 일</div>
+        <div class="tl-item hit"><span class="d">7/27 20:20</span><b>KS-probe 완주</b><br><span class="txt">8조건 · 개별 수치 전량 확보</span></div>
+        <div class="tl-item warn"><span class="d">7/28</span><b>파이프라인 분기 발각</b><br><span class="txt">z* 4.56배·rank 5.80배 왜곡 → 배제 선언 철회</span></div>
+        <div class="tl-item warn"><b>학습 백본 부재 확인</b><br><span class="txt">정본이 base backbone으로 실행 → 축 ④ 판정 보류</span></div>
+        <div class="tl-item act"><b>A0 · 학습 백본 탐색</b><br><span class="txt">d6046bbc → 317de5ab → eee5ebbe 순</span></div>
+      </div>
+      <div class="tl-col">
+        <div class="tl-label">최종까지</div>
+        <div class="tl-item act"><b>학습 백본에서 축 ④ 재측정</b><br><span class="txt">통과선도 학습 백본 기준으로 재정의</span></div>
+        <div class="tl-item"><b>통과하면 · 재설계 경로</b><br><span class="txt">설계안 → 재학습 → G1/G2 재판정 → 리뷰어 요구 실험</span></div>
+        <div class="tl-item"><b>미달하면 · 배제 지도 경로</b><br><span class="txt">네 축 실측 지도 + 발견 3건 → negative result</span></div>
+        <div class="tl-item"><b>백본 부재면 · 판정 불가</b><br><span class="txt">재학습이 선행돼야 하며 복귀 후 결정</span></div>
+        <div class="tl-item hit"><b>NeurIPS 2027 (5월)</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= S15 타임라인 ================= -->
+  <section>
+    <div class="sec-head"><h2>System 1.5 — 과거 · 현재 · 최종</h2><span class="note">DEQ Revival · 세션 기억(FWP)</span></div>
+    <div class="tl">
+      <div class="tl-col">
+        <div class="tl-label">지나온 길</div>
+        <div class="tl-item warn"><span class="d">7/26</span><b>후속 질문 정확도 0.000</b><br><span class="txt">기억 없는 방식(0.089)보다도 낮음</span></div>
+        <div class="tl-item hit"><b>보고 불가 봉인</b><br><span class="txt">방법 성능으로 오독될 여지 차단</span></div>
+        <div class="tl-item hit"><b>6조건 경로 격리</b><br><span class="txt">오버레이 미적용 + 디코딩 모드 파괴, 두 결함 분리</span></div>
+        <div class="tl-item warn"><b>4,400스텝 전 구간 미학습</b><br><span class="txt">옵티마이저는 돌았는데 grad가 0</span></div>
+        <div class="tl-item hit"><b>dW 모니터 도입</b><br><span class="txt">50스텝에서 재발 포착 (이전엔 4,400)</span></div>
+        <div class="tl-item hit"><b>원인 확정</b><br><span class="txt">키 접두사 불일치로 516개 전량 무시, 예외 없음</span></div>
+      </div>
+      <div class="tl-col now">
+        <div class="tl-label">지금 하는 일</div>
+        <div class="tl-item hit"><b>V1 · V2 관문 통과</b><br><span class="txt">lora_B 12/12 로드 · ΔW 4.135e-4</span></div>
+        <div class="tl-item act"><b>V3 본 재학습</b><br><span class="txt">GPU 0 · tmux detached · 신규 경로</span></div>
+        <div class="tl-item"><b>감시 지표</b><br><span class="txt">누적 ΔW 궤적 · 손실 하강 추세 · 모니터 중단 조건</span></div>
+        <div class="tl-item"><b>이번 목적은 성능이 아님</b><br><span class="txt">“학습이 일어나는가”만 판정</span></div>
+      </div>
+      <div class="tl-col">
+        <div class="tl-label">최종까지</div>
+        <div class="tl-item"><b>학습 성립 확인</b><br><span class="txt">누적 ΔW와 손실 곡선으로 검증</span></div>
+        <div class="tl-item"><b>구조적 한계 결정</b><br><span class="txt">k/v 경로 부재 — 설계의 1/3만 작동</span></div>
+        <div class="tl-item"><b>Table 2 재측정</b><br><span class="txt">세 행을 정직한 수치로 채움</span></div>
+        <div class="tl-item hit"><b>ICLR 2027 리빌드</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SYS 시리즈 ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>나머지 SYS 시리즈</h2>
+      <span class="note">코드 감사 미수행 — 아래는 감사 프로토콜에서 도출한 계획 <span class="g g-n" style="margin-left:6px">없음</span></span>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr><th style="width:110px">프로젝트</th><th style="width:88px">상태</th><th>1단계</th><th>2단계</th><th style="width:170px">최종</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="nm">System 2.5</td>
+          <td><span class="pill p-hold">감사 필요</span></td>
+          <td>학습 무결성 감사 — S15와 같은 코드베이스 계열이라 같은 함정 가능. 학습 대상 ↔ 옵티마이저 일치, 체크포인트 vs 초기값 분포</td>
+          <td>dW 모니터 배선 — 재학습 전에 파라미터 이동을 관측할 장치부터</td>
+          <td>검증된 조건에서 재학습. 감사 전 착수 금지</td>
+        </tr>
+        <tr>
+          <td class="nm">System 3</td>
+          <td><span class="pill p-wait">설계 대기</span></td>
+          <td>사전등록 설계 승인 — 판정식·효과 크기를 결과 확인 전에 고정</td>
+          <td>감사 체크리스트 수행 (2.5와 동일)</td>
+          <td>사전등록 기준으로 1회 확인 실험 → 논문 개정</td>
+        </tr>
+        <tr>
+          <td class="nm">System 4</td>
+          <td><span class="pill p-done">GPU 불요</span></td>
+          <td>논문 수정문 초안 — 유일하게 계산 자원 없이 전진하는 축</td>
+          <td>내부 리뷰</td>
+          <td>NeurIPS #1405 대응 · 제출은 승인 사안</td>
+        </tr>
+        <tr>
+          <td class="nm">DEQ Revival</td>
+          <td><span class="pill p-wait">유휴 상주</span></td>
+          <td>Stage-A 체크포인트 존재 확인 — “완료 vs 중단”을 가름</td>
+          <td>단계별 순차 진행, 각 단계가 이전 검증 통과 필수</td>
+          <td>관문 판정 → 봉인 평가 해제</td>
+        </tr>
+        <tr>
+          <td class="nm">EquiPhase</td>
+          <td><span class="pill p-stop">복구 필요</span></td>
+          <td>32조건 측정은 전부 완료. 검증 코드가 “정상이어야 할 0”을 실패로 판정</td>
+          <td>기존 결과 보존 + 새 버전에서 기대값 명시 비교 · 난수 통제 반복</td>
+          <td>측정 데이터 되살려 결과 확정</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout info" style="margin-top:14px">
+      <b>공통 원칙.</b> 감사에서 네 번째 미학습 사례가 나오면 개별 버그가 아니라 파이프라인 전체의 문제이고, 원고 재현성 절의 핵심 근거가 됩니다.
+    </div>
+  </section>
+
+  <!-- ================= 거짓 초록불 ================= -->
+  <section>
+    <div class="sec-head">
+      <h2>실패 패턴 다섯 유형</h2>
+      <span class="note">방법론 원장 · 2027 원고 재현성 절 원자료</span>
+    </div>
+    <div class="green-grid">
+      <div class="green-card">
+        <h4>① 소표본 인공물</h4>
+        <div class="lbl">사례</div>
+        <div class="real">파일럿 3문항 0.018 → 20문항 0.157 (8.7배)<br>ρ=0.5 12문항 0.0175 → judge-20 0.0797 (4.6배)</div>
+        <div class="lbl" style="margin-top:6px">방지</div>
+        <div class="pass">판정 수치는 judge-20에서만. 스윕은 탐색 전용.</div>
+      </div>
+      <div class="green-card">
+        <h4>② 붕괴쌍 왜곡</h4>
+        <div class="lbl">사례</div>
+        <div class="real">B4 중앙값 0.0793으로 통과선 이하였으나 max cos 0.9992 붕괴쌍 3개 실재</div>
+        <div class="lbl" style="margin-top:6px">방지</div>
+        <div class="pass">붕괴쌍 ≤2/190 하드 가드. 중앙값 단독 판정 금지.</div>
+      </div>
+      <div class="green-card">
+        <h4>③ 집계 지표 취약성</h4>
+        <div class="lbl">사례</div>
+        <div class="real">소수 음수 코사인 쌍이 평균을 끌어내림 (평균 0.0175 vs 중앙값 0.0359)</div>
+        <div class="lbl" style="margin-top:6px">방지</div>
+        <div class="pass">1차 지표를 중앙값으로. 쌍별 원자료 JSONL 저장 의무.</div>
+      </div>
+      <div class="green-card">
+        <h4>④ 미수렴 상태 오독</h4>
+        <div class="lbl">사례</div>
+        <div class="real">eff-rank 48.4를 “풍부함”으로 해석 → 실제로는 z0 잔존 랜덤성<br>제한 반복 rank 54~57인데 DISCRIM 전 구간 음수</div>
+        <div class="lbl" style="margin-top:6px">방지</div>
+        <div class="pass">rank와 내용 변별을 동시 판정. 수렴 확인 후 구조 해석.</div>
+      </div>
+      <div class="green-card" style="border-left-color:var(--amber)">
+        <h4>⑤ 파이프라인 분기 <span class="g g-m">신규</span></h4>
+        <div class="lbl">사례</div>
+        <div class="real">우회 스크립트 반복 생성 중 데이터 경로·체크포인트·모드가 정본에서 갈라짐 → z* 4.56배, rank 5.80배 왜곡<br>W4 첫 적용에서 <span class="mono">non_existent.pt</span> 즉시 포착</div>
+        <div class="lbl" style="margin-top:6px">방지</div>
+        <div class="pass">W4 회귀 관문 + 로드 성공을 값(std)으로 검증</div>
+      </div>
+      <div class="green-card" style="border-left-color:var(--steel)">
+        <h4>거짓 초록불 4건</h4>
+        <div class="lbl">공통 구조</div>
+        <div class="real">통과 신호가 나왔지만 검증하려는 명제를 증명하지 않음 — 테스트 우회 경로 / CI 265 passed / 정적 프로브 / 조용한 로드 실패(516키)</div>
+        <div class="lbl" style="margin-top:6px">방지</div>
+        <div class="pass">학습이 일어남을 매 실행에서 능동 증명(dW 모니터)</div>
+      </div>
+    </div>
+    <div class="callout info" style="margin-top:14px">
+      <b>W5 규칙 — 기준값 출처 명시.</b>
+      모든 기준값에 체크포인트 절대경로+SHA(또는 “base backbone”), deq_map_mode, 데이터 경로+행 수를 함께 기록합니다.
+      그리고 <b>회귀 관문의 유효성과 과학적 결론의 유효성은 별개</b>입니다 — 조건이 일관돼도 그 조건이 틀렸으면 결론은 성립하지 않습니다.
+      이번 축 ④ 보류가 정확히 그 사례입니다.
+    </div>
+  </section>
+
+  <footer>
+    <span>모든 수치에 출처 등급이 붙어 있습니다. 빈칸은 미완이 아니라 데이터 없음입니다.</span>
+    <span style="margin-left:auto">CTS · System 1.5 · 2026-07-28</span>
+  </footer>
+
+</div>
+</body>
+</html>

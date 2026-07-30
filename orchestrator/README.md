@@ -61,6 +61,10 @@ $taskId = (
 .\orchestrator\pair.ps1 stop -TaskId $taskId -Reason "Operator stop"
 ```
 
+The local sidecar allowlist contains both active product workspaces:
+`C:\Project\System1.5` and `C:\Project\CTS`.  A task must still name exactly
+one target and all adapter calls remain read-only.
+
 The Antigravity sidecar manifest explicitly pins the real
 `language_server.exe`, Codex, Git, and `pair-process-runner.ps1` by absolute
 path and SHA-256. Every local adapter invocation runs below a gated Windows Job
