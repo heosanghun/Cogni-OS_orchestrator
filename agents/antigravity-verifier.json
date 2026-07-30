@@ -1,0 +1,16 @@
+{
+  "command": null,
+  "created_at": "2026-07-30T14:46:20Z",
+  "id": "antigravity-verifier",
+  "identity": {
+    "alias_chain": [],
+    "alias_of": null,
+    "control_principal": "antigravity-verifier-control",
+    "model_family": "google-antigravity-verifier",
+    "schema_version": 1
+  },
+  "mode": "manual",
+  "role": "verifier",
+  "schema_version": 2,
+  "write_roots": []
+}

@@ -1,0 +1,26 @@
+{
+  "attempt": 1,
+  "files": [
+    {
+      "archive_path": "C:\\comunity\\submissions\\T-001\\attempt-001\\worker-71856a10a02e290a\\files\\b081dfa07beffd499bea33d5164b6373b09c2c24dd3351490f3be6fc598fdfca_T-001.md",
+      "kind": "report",
+      "retained": true,
+      "sha256": "b081dfa07beffd499bea33d5164b6373b09c2c24dd3351490f3be6fc598fdfca",
+      "size_bytes": 2340,
+      "source": "C:\\comunity\\reports\\antigravity\\T-001.md"
+    },
+    {
+      "archive_path": "C:\\comunity\\submissions\\T-001\\attempt-001\\worker-71856a10a02e290a\\files\\71856a10a02e290afbc53ecf432492cc96e98b434c1754cfa0aa38d4f6eb0783_T-001.evidence.json",
+      "kind": "manifest",
+      "retained": true,
+      "sha256": "71856a10a02e290afbc53ecf432492cc96e98b434c1754cfa0aa38d4f6eb0783",
+      "size_bytes": 860,
+      "source": "C:\\comunity\\reports\\antigravity\\T-001.evidence.json"
+    }
+  ],
+  "label": "worker",
+  "manifest_sha256": "71856a10a02e290afbc53ecf432492cc96e98b434c1754cfa0aa38d4f6eb0783",
+  "max_artifact_bytes": 52428800,
+  "schema_version": 1,
+  "task_id": "T-001"
+}

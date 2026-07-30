@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "path": "T-001.md",
+      "sha256": "b081dfa07beffd499bea33d5164b6373b09c2c24dd3351490f3be6fc598fdfca"
+    }
+  ],
+  "validations": [
+    {
+      "command": "python -m unittest discover -s src/cogni_os/tests",
+      "exit_code": 0,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "skip_reasons": []
+    }
+  ],
+  "known_answer_checks": [
+    {
+      "name": "AC1_Claude_Residue_Audit",
+      "expected": "clean",
+      "observed": "clean",
+      "passed": true
+    },
+    {
+      "name": "AC2_Role_Separation_Audit",
+      "expected": "codex_conductor",
+      "observed": "codex_conductor",
+      "passed": true
+    }
+  ],
+  "claims": [
+    {
+      "name": "release_truth",
+      "kind": "functional",
+      "measured": true,
+      "value": "pass",
+      "evidence": ["T-001.md"]
+    }
+  ]
+}

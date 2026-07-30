@@ -1,0 +1,20 @@
+{
+  "command": null,
+  "created_at": "2026-07-30T14:46:20Z",
+  "id": "codex",
+  "identity": {
+    "alias_chain": [],
+    "alias_of": null,
+    "control_principal": "codex-conductor",
+    "model_family": "openai-codex",
+    "schema_version": 1
+  },
+  "mode": "manual",
+  "role": "orchestrator",
+  "schema_version": 2,
+  "write_roots": [
+    "tasks",
+    "shared",
+    "archive"
+  ]
+}
