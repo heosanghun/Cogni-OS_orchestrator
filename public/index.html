@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0b0f19">
-  <meta name="description" content="Cogni-OS Orchestrator 실시간 운영 관제 시스템">
-  <title>Cogni-OS Operations</title>
+  <meta name="description" content="Cogni-OS Orchestrator 실시간 종합 관제 대시보드">
+  <title>Cogni-OS Operations System 1.5</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
   <link rel="stylesheet" href="/assets/styles.css">
   <script src="/assets/app.js" defer></script>
@@ -17,40 +17,37 @@
       <span class="brand-mark" aria-hidden="true">C</span>
       <span>
         <strong>Cogni-OS Operations</strong>
-        <small id="workspace-name">Cogni-OS Orchestration Engine</small>
+        <small id="workspace-name">Cogni-OS Production Cluster</small>
       </span>
     </a>
     <div class="topbar-actions">
       <div class="freshness" id="freshness">
         <span class="status-dot live" id="live-dot" aria-hidden="true"></span>
-        <span id="live-label">LIVE SYNC</span>
+        <span id="live-label">실시간 연동</span>
         <time id="last-updated">-</time>
       </div>
-      <button class="icon-button" id="refresh-button" type="button"
-              aria-label="지금 새로고침" title="지금 새로고침">
+      <button class="icon-button" id="refresh-button" type="button" aria-label="지금 새로고침" title="지금 새로고침">
         <span aria-hidden="true">↻</span>
       </button>
     </div>
   </header>
 
   <main>
-    <!-- Mission & Overall Task Progress -->
+    <!-- Mission Band -->
     <section class="mission-band" aria-labelledby="objective-label">
       <div class="mission-copy">
-        <p class="eyebrow" id="objective-label">COGNITIVE OS MISSION</p>
-        <h1 id="objective">Codex 지휘자와 Antigravity 멀티에이전트 군단이 증거 기반 협업을 수행합니다.</h1>
+        <p class="eyebrow" id="objective-label">최종 목표 (COGNITIVE MISSION)</p>
+        <h1 id="objective">Codex 지휘자와 Antigravity 멀티에이전트 군단이 증거 기반 협업을 완성합니다.</h1>
       </div>
       <div class="mission-progress">
         <div class="metric-line">
           <span>검증 워크플로 진행률</span>
-          <strong id="overall-progress-label">0%</strong>
+          <strong id="overall-progress-label">82%</strong>
         </div>
-        <div class="progress-track progress-large" role="progressbar"
-             aria-label="검증 워크플로 진행률" aria-valuemin="0"
-             aria-valuemax="100" aria-valuenow="0">
-          <span id="overall-progress"></span>
+        <div class="progress-track progress-large" role="progressbar" aria-label="검증 워크플로 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="82">
+          <span id="overall-progress" style="width: 82%;"></span>
         </div>
-        <p id="next-milestone">다음 독립 검증 마일스톤 대기 중</p>
+        <p id="next-milestone">다음 단계: 현재 Cogni-OS 작업의 독립 검증</p>
       </div>
     </section>
 
@@ -63,28 +60,28 @@
       </article>
       <article class="kpi">
         <span class="kpi-label">진행 중 작업</span>
-        <strong id="kpi-tasks">0</strong>
-        <span class="kpi-note" id="kpi-tasks-note">대기 0</span>
+        <strong id="kpi-tasks">1</strong>
+        <span class="kpi-note" id="kpi-tasks-note">대기 1</span>
       </article>
       <article class="kpi">
-        <span class="kpi-label">독립 검증 통과</span>
-        <strong id="kpi-verified">0</strong>
-        <span class="kpi-note" id="kpi-verified-note">VERIFIED</span>
+        <span class="kpi-label">평균 GPU 사용률</span>
+        <strong id="kpi-gpu">12%</strong>
+        <span class="kpi-note" id="kpi-gpu-note">1 / 8 활성</span>
       </article>
       <article class="kpi">
-        <span class="kpi-label">불변 원장 이벤트</span>
-        <strong id="kpi-ledger-events">0</strong>
-        <span class="kpi-note" id="kpi-ledger-note">HMAC 서명됨</span>
+        <span class="kpi-label">GPU 메모리</span>
+        <strong id="kpi-vram">6%</strong>
+        <span class="kpi-note" id="kpi-vram-note">24.1 / 383.9 GiB</span>
       </article>
       <article class="kpi">
-        <span class="kpi-label">서버 자원 상태</span>
-        <strong id="kpi-system-load">NORMAL</strong>
-        <span class="kpi-note" id="kpi-system-note">Cloudflare Sync</span>
+        <span class="kpi-label">서버 저장공간</span>
+        <strong id="kpi-disk">92%</strong>
+        <span class="kpi-note" id="kpi-disk-note">276.5 GiB 사용 가능</span>
       </article>
       <article class="kpi">
-        <span class="kpi-label">주의 및 차단 항목</span>
-        <strong id="kpi-alerts">0</strong>
-        <span class="kpi-note" id="kpi-alerts-note">정상</span>
+        <span class="kpi-label">주의 항목</span>
+        <strong id="kpi-alerts" style="color: var(--amber);">1</strong>
+        <span class="kpi-note" id="kpi-alerts-note">디스크 경고</span>
       </article>
     </section>
 
@@ -92,10 +89,10 @@
     <section class="section-band" aria-labelledby="agents-heading">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">AGENT TOPOLOGY</p>
-          <h2 id="agents-heading">Codex Conductor &amp; Antigravity Fleet</h2>
+          <p class="eyebrow">협업 상태 (AGENT TOPOLOGY)</p>
+          <h2 id="agents-heading">에이전트별 현재 작업</h2>
         </div>
-        <span class="section-meta" id="ledger-status">원장 서명 상태: VERIFIED</span>
+        <span class="section-meta" id="ledger-status">원장 서명 유효 · 132 events</span>
       </div>
       <div class="agent-grid" id="agent-grid" aria-live="polite"></div>
     </section>
@@ -104,15 +101,15 @@
     <section class="section-band activity-band" aria-labelledby="activity-heading">
       <div class="section-heading activity-heading">
         <div>
-          <p class="eyebrow">HMAC SIGNED LEDGER</p>
-          <h2 id="activity-heading">시간순 작업 원장 히스토리</h2>
+          <p class="eyebrow">서명 원장 (HMAC SIGNED LEDGER)</p>
+          <h2 id="activity-heading">시간별 작업 히스토리</h2>
         </div>
         <div class="activity-heading-actions">
-          <span class="section-meta" id="activity-range-label">최근 기록</span>
-          <div class="segmented-control" aria-label="작업 히스토리 조회 필터">
-            <button class="segment-button active" type="button" data-activity-filter="all">전체</button>
-            <button class="segment-button" type="button" data-activity-filter="verified">검증완료</button>
-            <button class="segment-button" type="button" data-activity-filter="submitted">제출됨</button>
+          <span class="section-meta" id="activity-range-label">최근 24시간 · 85건</span>
+          <div class="segmented-control" aria-label="작업 히스토리 조회 기간">
+            <button class="segment-button active" type="button" data-activity-hours="24">24시간</button>
+            <button class="segment-button" type="button" data-activity-hours="72">72시간</button>
+            <button class="segment-button" type="button" data-activity-hours="168">7일</button>
           </div>
         </div>
       </div>
@@ -120,19 +117,19 @@
       <div class="activity-summary" aria-label="선택 기간 작업 요약">
         <div class="activity-stat">
           <span>원장 이벤트</span>
-          <strong id="activity-total">0</strong>
+          <strong id="activity-total">85</strong>
         </div>
         <div class="activity-stat">
           <span>참여 에이전트</span>
-          <strong id="activity-actors">0</strong>
+          <strong id="activity-actors">3</strong>
         </div>
         <div class="activity-stat">
           <span>검증·완료</span>
-          <strong id="activity-completed">0</strong>
+          <strong id="activity-completed">11</strong>
         </div>
         <div class="activity-stat">
           <span>차단·반려</span>
-          <strong id="activity-issues">0</strong>
+          <strong id="activity-issues">2</strong>
         </div>
       </div>
 
@@ -140,55 +137,142 @@
         <article class="activity-panel">
           <div class="activity-subheading">
             <div>
-              <strong>실시간 원장 스트림</strong>
-              <span>에이전트 트랜잭션 및 불변 SHA-256 해시 체인 기록입니다.</span>
+              <strong>시간순 원장 기록</strong>
+              <span>최근 기록부터 시간대별로 묶어 표시합니다.</span>
             </div>
-            <span id="activity-visible-count">0건 표시</span>
+            <span id="activity-visible-count">85건 표시</span>
           </div>
           <div class="activity-feed" id="activity-feed" aria-live="polite"></div>
         </article>
       </div>
     </section>
 
-    <!-- System Resources & Metrics -->
+    <!-- SSH Server & GPU Cluster -->
+    <section class="section-band" aria-labelledby="gpu-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">SSH 서버</p>
+          <h2 id="gpu-heading">GPU 배치와 상태</h2>
+        </div>
+        <span class="section-meta" id="gpu-host">Cogni-OS A6000 Cluster (8 GPUs)</span>
+      </div>
+      <div class="gpu-list" id="gpu-list"></div>
+    </section>
+
+    <!-- GPU Utilization Charts -->
+    <section class="chart-band" aria-label="시간 변화 그래프">
+      <article class="chart-panel">
+        <div class="chart-heading">
+          <div>
+            <p class="eyebrow">GPU 사용률</p>
+            <h2>최근 추이</h2>
+          </div>
+          <span id="util-range">최근 2시간</span>
+        </div>
+        <div class="chart-wrap">
+          <svg id="utilization-chart" class="line-chart" role="img" aria-label="GPU 사용률 시간 변화"></svg>
+        </div>
+        <div class="legend" id="utilization-legend"></div>
+      </article>
+      <article class="chart-panel">
+        <div class="chart-heading">
+          <div>
+            <p class="eyebrow">GPU 온도</p>
+            <h2>열 상태</h2>
+          </div>
+          <span id="temperature-peak">최고 55°C</span>
+        </div>
+        <div class="chart-wrap">
+          <svg id="temperature-chart" class="line-chart" role="img" aria-label="GPU 온도 시간 변화"></svg>
+        </div>
+        <div class="legend" id="temperature-legend"></div>
+      </article>
+    </section>
+
+    <!-- System Resources -->
     <section class="resource-band" aria-label="서버 자원">
       <article class="resource-block">
         <div>
           <p class="eyebrow">시스템 메모리</p>
-          <h2 id="memory-title">16 / 64 GiB</h2>
+          <h2 id="memory-title">30.2 / 251.5 GiB</h2>
         </div>
         <svg class="ring-chart" id="memory-ring" viewBox="0 0 120 120" role="img" aria-label="시스템 메모리 사용률">
           <circle class="ring-base" cx="60" cy="60" r="48"></circle>
-          <circle class="ring-value" cx="60" cy="60" r="48" style="stroke-dasharray: 301; stroke-dashoffset: 225;"></circle>
-          <text x="60" y="64" text-anchor="middle" id="memory-ring-label">25%</text>
+          <circle class="ring-value" cx="60" cy="60" r="48" style="stroke-dasharray: 301; stroke-dashoffset: 264;"></circle>
+          <text x="60" y="64" text-anchor="middle" id="memory-ring-label">12%</text>
         </svg>
       </article>
       <article class="resource-block">
         <div>
           <p class="eyebrow">저장공간</p>
-          <h2 id="disk-title">120 / 512 GiB</h2>
+          <h2 id="disk-title">3203.6 / 3666.4 GiB</h2>
         </div>
         <svg class="ring-chart ring-disk" id="disk-ring" viewBox="0 0 120 120" role="img" aria-label="저장공간 사용률">
           <circle class="ring-base" cx="60" cy="60" r="48"></circle>
-          <circle class="ring-value" cx="60" cy="60" r="48" style="stroke-dasharray: 301; stroke-dashoffset: 230;"></circle>
-          <text x="60" y="64" text-anchor="middle" id="disk-ring-label">23%</text>
+          <circle class="ring-value" cx="60" cy="60" r="48" style="stroke-dasharray: 301; stroke-dashoffset: 24;"></circle>
+          <text x="60" y="64" text-anchor="middle" id="disk-ring-label">92%</text>
         </svg>
       </article>
       <article class="resource-block resource-details">
         <div class="resource-row">
-          <span>시스템 상태</span>
-          <strong id="system-status-val" style="color: var(--accent-green);">HEALTHY</strong>
+          <span>시스템 부하</span>
+          <strong id="system-load">4.27</strong>
         </div>
         <div class="resource-row">
-          <span>원장 검증</span>
-          <strong id="ledger-verify-val">HMAC PASSED</strong>
+          <span>가동 시간</span>
+          <strong id="system-uptime">50일 23시간</strong>
         </div>
         <div class="resource-row">
-          <span>동기화 엔진</span>
-          <strong>Cloudflare Pages API</strong>
+          <span>수집 주기</span>
+          <strong id="collection-interval">120초</strong>
         </div>
       </article>
     </section>
+
+    <!-- Task Directory Table -->
+    <section class="section-band" aria-labelledby="tasks-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">작업 원장</p>
+          <h2 id="tasks-heading">현재 작업과 다음 단계</h2>
+        </div>
+        <span class="section-meta" id="task-count">20개 작업</span>
+      </div>
+      <div class="table-wrap">
+        <table class="task-table" id="task-table">
+          <thead>
+            <tr>
+              <th>작업</th>
+              <th>담당</th>
+              <th>상태</th>
+              <th>진행률</th>
+              <th>다음 단계</th>
+              <th>최근 변경</th>
+            </tr>
+          </thead>
+          <tbody id="task-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Operational Alerts -->
+    <section class="section-band alerts-section" aria-labelledby="alerts-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">운영 신호</p>
+          <h2 id="alerts-heading">주의가 필요한 항목</h2>
+        </div>
+      </div>
+      <div class="alerts-list" id="alerts-list">
+        <div class="alert-item alert-urgent">
+          <strong>긴급: 저장 공간 부족</strong>
+          <span>디스크 사용률이 92.0% (276.5 GiB 사용 가능) 입니다. 아카이브 용량을 정리하세요.</span>
+          <time>07. 30. 23:32:03</time>
+        </div>
+      </div>
+    </section>
   </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
