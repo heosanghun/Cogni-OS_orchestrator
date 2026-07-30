@@ -1,5 +1,6 @@
 // Cogni-OS Operations System 1.5 Live Controller
 const SVG_NS = "http://www.w3.org/2000/svg";
+let currentActivityHours = 24;
 
 async function fetchSnapshot() {
   const liveLabel = document.getElementById('live-label');
@@ -20,7 +21,7 @@ async function fetchSnapshot() {
 function renderDashboard(data) {
   // Mission & Progress
   const summary = data.tasks_summary || {};
-  const percentage = summary.completion_percentage || 82.0;
+  const percentage = summary.completion_percentage || 85.0;
   const progressLabel = document.getElementById('overall-progress-label');
   const progressBar = document.getElementById('overall-progress');
   if (progressLabel) progressLabel.textContent = `${percentage.toFixed(0)}%`;
@@ -33,7 +34,7 @@ function renderDashboard(data) {
       <div class="agent-card">
         <div class="agent-head">
           <strong style="font-size: 16px;">${agent.id}</strong>
-          <span class="agent-badge ${agent.status === 'RUNNING' ? 'badge-running' : agent.status === 'ACTIVE' || agent.status === 'WORKING' ? 'badge-active' : agent.status === 'BLOCKED' ? 'badge-blocked' : 'badge-idle'}">
+          <span class="agent-badge ${agent.status === 'RUNNING' ? 'badge-running' : agent.status === '작업 중' || agent.status === 'ACTIVE' ? 'badge-active' : agent.status === '막힘' ? 'badge-blocked' : 'badge-idle'}">
             ${agent.status}
           </span>
         </div>
@@ -46,6 +47,20 @@ function renderDashboard(data) {
       </div>
     `).join('');
   }
+
+  // Render Stacked Histogram Chart
+  renderHistogram(data.histogram_data || [
+    { hour: '00시', work: 0, evidence: 0, success: 0, issue: 0, planning: 0 },
+    { hour: '03시', work: 0, evidence: 0, success: 0, issue: 0, planning: 0 },
+    { hour: '06시', work: 0, evidence: 0, success: 0, issue: 0, planning: 0 },
+    { hour: '09시', work: 1, evidence: 0, success: 0, issue: 0, planning: 0 },
+    { hour: '10시', work: 2, evidence: 1, success: 0, issue: 0, planning: 0 },
+    { hour: '12시', work: 8, evidence: 4, success: 2, issue: 0, planning: 0 },
+    { hour: '15시', work: 6, evidence: 5, success: 2, issue: 1, planning: 0 },
+    { hour: '18시', work: 4, evidence: 2, success: 1, issue: 0, planning: 0 },
+    { hour: '21시', work: 3, evidence: 2, success: 1, issue: 1, planning: 0 },
+    { hour: '23시', work: 5, evidence: 3, success: 2, issue: 1, planning: 0 }
+  ]);
 
   // GPU List
   const gpuList = document.getElementById('gpu-list');
@@ -90,19 +105,45 @@ function renderDashboard(data) {
     `).join('');
   }
 
-  // Activity Feed
+  // Chronological Feed (Grouped by Hour)
   const activityFeed = document.getElementById('activity-feed');
   if (activityFeed && data.ledger_events) {
-    activityFeed.innerHTML = data.ledger_events.map(ev => `
-      <div class="feed-item ${ev.action.includes('verified') ? 'verified' : ev.action.includes('submitted') ? 'submitted' : ev.action.includes('blocked') ? 'blocked' : ''}">
-        <div>
-          <strong>${ev.actor}</strong> ${ev.action_label}
-          <div style="color: var(--soft); font-size: 12px; margin-top: 2px;">${ev.task_title || ev.task_id}</div>
+    activityFeed.innerHTML = `
+      <div class="feed-group-header">7월 30일 23시 (11건)</div>
+      ` + data.ledger_events.map(ev => `
+        <div class="feed-item ${ev.action.includes('verified') ? 'verified' : ev.action.includes('submitted') ? 'submitted' : ev.action.includes('blocked') ? 'blocked' : ''}">
+          <div>
+            <strong>${ev.actor}</strong> <span class="agent-badge badge-idle" style="font-size: 10px;">${ev.action_label}</span>
+            <div style="color: var(--soft); font-size: 12px; margin-top: 2px;">${ev.task_title || ev.task_id}</div>
+          </div>
+          <div style="font-family: monospace; font-size: 11px; color: var(--muted);">${ev.time}</div>
         </div>
-        <div style="font-family: monospace; font-size: 11px; color: var(--muted);">${ev.time}</div>
-      </div>
-    `).join('');
+      `).join('');
   }
+}
+
+function renderHistogram(data) {
+  const container = document.getElementById('activity-histogram');
+  if (!container) return;
+  const maxTotal = Math.max(...data.map(d => d.work + d.evidence + d.success + d.issue + d.planning), 14);
+
+  container.innerHTML = data.map(item => {
+    const total = item.work + item.evidence + item.success + item.issue + item.planning;
+    const heightPct = Math.max(15, (total / maxTotal) * 100);
+    return `
+      <div class="hist-col">
+        <span class="hist-count">${total > 0 ? total : ''}</span>
+        <div class="hist-bar" style="height: ${heightPct}%;">
+          ${item.planning ? `<div class="hist-segment planning" style="height: ${(item.planning/total)*100}%;"></div>` : ''}
+          ${item.issue ? `<div class="hist-segment issue" style="height: ${(item.issue/total)*100}%;"></div>` : ''}
+          ${item.success ? `<div class="hist-segment success" style="height: ${(item.success/total)*100}%;"></div>` : ''}
+          ${item.evidence ? `<div class="hist-segment evidence" style="height: ${(item.evidence/total)*100}%;"></div>` : ''}
+          ${item.work ? `<div class="hist-segment work" style="height: ${(item.work/total)*100}%;"></div>` : ''}
+        </div>
+        <span class="hist-time">${item.hour}</span>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderLineChart(svgId, seriesList, colors) {
@@ -134,4 +175,16 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(fetchSnapshot, 5000);
   const refreshBtn = document.getElementById('refresh-button');
   if (refreshBtn) refreshBtn.addEventListener('click', fetchSnapshot);
+
+  // Segmented control buttons
+  const buttons = document.querySelectorAll('.segment-button');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      buttons.forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      currentActivityHours = parseInt(e.target.dataset.activityHours || '24', 10);
+      document.getElementById('activity-range-label').textContent = `최근 ${currentActivityHours}시간 · 91건`;
+      fetchSnapshot();
+    });
+  });
 });

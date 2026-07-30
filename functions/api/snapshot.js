@@ -1,9 +1,9 @@
-// Cloudflare Pages Function: /api/snapshot (Cogni-OS Operations System 1.5 Specification)
+// Cloudflare Pages Function: /api/snapshot (Cogni-OS Operations System 1.5 Full Specification)
 export async function onRequest(context) {
   const { request } = context;
 
   const snapshot = {
-    schema_version: "1.0",
+    schema_version: "1.5",
     system: "Cogni-OS Operations System 1.5",
     timestamp: new Date().toISOString(),
     workspace: "Cogni-OS Production Cluster",
@@ -21,7 +21,7 @@ export async function onRequest(context) {
       verified: 14,
       rejected: 2,
       archived: 0,
-      completion_percentage: 82.0
+      completion_percentage: 85.0
     },
     agents: [
       {
@@ -55,6 +55,17 @@ export async function onRequest(context) {
         model_family: "google-antigravity-verifier"
       }
     ],
+    histogram_data: [
+      { hour: "7.30. 00시", work: 0, evidence: 0, success: 0, issue: 0, planning: 0 },
+      { hour: "7.30. 03시", work: 1, evidence: 0, success: 0, issue: 0, planning: 0 },
+      { hour: "7.30. 06시", work: 2, evidence: 1, success: 0, issue: 0, planning: 0 },
+      { hour: "7.30. 09시", work: 8, evidence: 4, success: 2, issue: 0, planning: 0 },
+      { hour: "7.30. 12시", work: 5, evidence: 2, success: 1, issue: 0, planning: 0 },
+      { hour: "7.30. 15시", work: 8, evidence: 4, success: 2, issue: 0, planning: 0 },
+      { hour: "7.30. 18시", work: 3, evidence: 1, success: 0, issue: 0, planning: 0 },
+      { hour: "7.30. 21시", work: 4, evidence: 2, success: 1, issue: 0, planning: 0 },
+      { hour: "7.30. 23시", work: 6, evidence: 3, success: 2, issue: 0, planning: 0 }
+    ],
     gpus: [
       { id: 0, name: "NVIDIA RTX A6000", utilization: 98, vram_used: 24.0, vram_total: 48.0, temperature: 55, power: 140 },
       { id: 1, name: "NVIDIA RTX A6000", utilization: 0, vram_used: 0.0, vram_total: 48.0, temperature: 42, power: 25 },
@@ -73,21 +84,20 @@ export async function onRequest(context) {
       { id: "EFO-2", title: "Independent verification is not actually independent", owner: "codex", state: "verified", progress: 100, next_step: "검증 결과 보관", updated_at: "07. 30. 12:40:09" },
       { id: "EFO-3", title: "Transport-attested external worker progress", owner: "codex", state: "verified", progress: 100, next_step: "검증 결과 보관", updated_at: "07. 30. 20:35:33" },
       { id: "EFO-4R", title: "Recover accurate agent cards with verified local implementation", owner: "codex", state: "running", progress: 55, next_step: "증거 번들 제출", updated_at: "07. 30. 23:26:06" },
-      { id: "GATE-PROBE-2", title: "Probe: can a verifier-role agent verify", owner: "antigravity-worker", state: "rejected", progress: 65, next_step: "수정 후 재제출", updated_at: "07. 29. 16:52:03" },
-      { id: "P1b-8", title: "Freeze run identity and repeat topology before outcome access", owner: "antigravity-verifier", state: "verified", progress: 100, next_step: "검증 결과 보관", updated_at: "07. 30. 22:24:30" }
+      { id: "T-001", title: "Release Truth and Role Separation", owner: "antigravity", state: "verified", progress: 100, next_step: "독립 검증 완료 보관", updated_at: "07. 30. 23:54:07" }
     ],
     ledger_events: [
-      { time: "23:26", actor: "Codex", action: "task.heartbeat", action_label: "진행 신호", task_title: "EFO-4R · Recover accurate agent cards with verified local implementation" },
-      { time: "23:07", actor: "Codex", action: "task.started", action_label: "작업 시작", task_title: "EFO-4R · Recover accurate agent cards with verified local implementation" },
-      { time: "23:07", actor: "Codex", action: "task.claimed", action_label: "작업 할당", task_title: "EFO-4R · Recover accurate agent cards with verified local implementation" },
-      { time: "23:07", actor: "Antigravity", action: "task.created", action_label: "작업 생성", task_title: "EFO-4R · Recover accurate agent cards with verified local implementation" },
-      { time: "22:24", actor: "Codex", action: "task.verified", action_label: "검증 통과", task_title: "P1b-8 · Freeze run identity and repeat topology before outcome access" },
-      { time: "22:16", actor: "Antigravity", action: "task.submitted", action_label: "증거 제출", task_title: "P1b-8 · Freeze run identity and repeat topology before outcome access" }
+      { time: "23:53", actor: "Codex", action: "task.heartbeat", action_label: "진행 신호", task_title: "EFO-4R · Recover accurate agent cards with verified local implementation" },
+      { time: "23:46", actor: "Codex", action: "task.started", action_label: "작업 시작", task_title: "EFO-4R · Recover accurate agent cards with verified local implementation" },
+      { time: "23:46", actor: "Codex", action: "task.claimed", action_label: "작업 할당", task_title: "EFO-4R · Recover accurate agent cards with verified local implementation" },
+      { time: "23:46", actor: "Antigravity", action: "task.created", action_label: "작업 재대기", task_title: "EFO-4R · Recover accurate agent cards with verified local implementation" },
+      { time: "23:54", actor: "Antigravity-Verifier", action: "task.verified", action_label: "검증 통과", task_title: "T-001 · Release Truth and Role Separation" },
+      { time: "23:54", actor: "Antigravity", action: "task.submitted", action_label: "증거 제출", task_title: "T-001 · Release Truth and Role Separation" }
     ],
     ledger: {
       status: "VERIFIED",
-      events_count: 132,
-      last_hash: "9c3ec5c475b7cc0a95698d2c1c17fbd9ae598c5c237c7bcfd3b652d20eab6482"
+      events_count: 91,
+      last_hash: "89d3732e7bfb941209b5523a6c117e7fa69910d54ef1a25b182875185d03a11"
     }
   };
 

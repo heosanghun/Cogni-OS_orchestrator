@@ -42,12 +42,12 @@
       <div class="mission-progress">
         <div class="metric-line">
           <span>검증 워크플로 진행률</span>
-          <strong id="overall-progress-label">82%</strong>
+          <strong id="overall-progress-label">85%</strong>
         </div>
-        <div class="progress-track progress-large" role="progressbar" aria-label="검증 워크플로 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="82">
-          <span id="overall-progress" style="width: 82%;"></span>
+        <div class="progress-track progress-large" role="progressbar" aria-label="검증 워크플로 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="85">
+          <span id="overall-progress" style="width: 85%;"></span>
         </div>
-        <p id="next-milestone">다음 단계: 현재 Cogni-OS 작업의 독립 검증</p>
+        <p id="next-milestone">다음 단계: 현재 Cogni-OS 작업의 독립 검증 완료</p>
       </div>
     </section>
 
@@ -92,20 +92,20 @@
           <p class="eyebrow">협업 상태 (AGENT TOPOLOGY)</p>
           <h2 id="agents-heading">에이전트별 현재 작업</h2>
         </div>
-        <span class="section-meta" id="ledger-status">원장 서명 유효 · 132 events</span>
+        <span class="section-meta" id="ledger-status">원장 서명 유효 · 91 events</span>
       </div>
       <div class="agent-grid" id="agent-grid" aria-live="polite"></div>
     </section>
 
-    <!-- Signed Ledger History -->
+    <!-- Signed Ledger & Hourly Activity Histogram Section (Exact EFO 1.5 Spec) -->
     <section class="section-band activity-band" aria-labelledby="activity-heading">
       <div class="section-heading activity-heading">
         <div>
-          <p class="eyebrow">서명 원장 (HMAC SIGNED LEDGER)</p>
+          <p class="eyebrow">서명 원장</p>
           <h2 id="activity-heading">시간별 작업 히스토리</h2>
         </div>
         <div class="activity-heading-actions">
-          <span class="section-meta" id="activity-range-label">최근 24시간 · 85건</span>
+          <span class="section-meta" id="activity-range-label">최근 24시간 · 91건</span>
           <div class="segmented-control" aria-label="작업 히스토리 조회 기간">
             <button class="segment-button active" type="button" data-activity-hours="24">24시간</button>
             <button class="segment-button" type="button" data-activity-hours="72">72시간</button>
@@ -117,11 +117,11 @@
       <div class="activity-summary" aria-label="선택 기간 작업 요약">
         <div class="activity-stat">
           <span>원장 이벤트</span>
-          <strong id="activity-total">85</strong>
+          <strong id="activity-total">91</strong>
         </div>
         <div class="activity-stat">
           <span>참여 에이전트</span>
-          <strong id="activity-actors">3</strong>
+          <strong id="activity-actors">6</strong>
         </div>
         <div class="activity-stat">
           <span>검증·완료</span>
@@ -129,18 +129,40 @@
         </div>
         <div class="activity-stat">
           <span>차단·반려</span>
-          <strong id="activity-issues">2</strong>
+          <strong id="activity-issues">5</strong>
         </div>
       </div>
 
       <div class="activity-layout">
+        <!-- Stacked Histogram Chart Panel -->
+        <article class="activity-panel">
+          <div class="activity-subheading">
+            <div>
+              <strong>시간대별 활동량</strong>
+              <span>각 막대는 1시간 동안 기록된 이벤트 수입니다. 최근 최대 300건 기준입니다.</span>
+            </div>
+            <span id="activity-peak">최대 14건/시간</span>
+          </div>
+          <div class="activity-chart-scroll">
+            <div class="activity-histogram" id="activity-histogram" role="img" aria-label="시간대별 작업 이벤트 막대그래프"></div>
+          </div>
+          <div class="activity-legend" aria-label="이벤트 유형">
+            <span><i class="activity-dot work"></i>수행</span>
+            <span><i class="activity-dot evidence"></i>증거</span>
+            <span><i class="activity-dot success"></i>검증·완료</span>
+            <span><i class="activity-dot issue"></i>문제</span>
+            <span><i class="activity-dot planning"></i>계획·시스템</span>
+          </div>
+        </article>
+
+        <!-- Chronological Feed Panel -->
         <article class="activity-panel">
           <div class="activity-subheading">
             <div>
               <strong>시간순 원장 기록</strong>
               <span>최근 기록부터 시간대별로 묶어 표시합니다.</span>
             </div>
-            <span id="activity-visible-count">85건 표시</span>
+            <span id="activity-visible-count">91건 표시</span>
           </div>
           <div class="activity-feed" id="activity-feed" aria-live="polite"></div>
         </article>
@@ -266,7 +288,7 @@
       <div class="alerts-list" id="alerts-list">
         <div class="alert-item alert-urgent">
           <strong>긴급: 저장 공간 부족</strong>
-          <span>디스크 사용률이 92.0% (276.5 GiB 사용 가능) 입니다. 아카이브 용량을 정리하세요.</span>
+          <span>디스크 사용률이 92.0% (276.5 GiB 사용 가능) 입니다.</span>
           <time>07. 30. 23:32:03</time>
         </div>
       </div>
