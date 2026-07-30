@@ -1,13 +1,12 @@
 // Cloudflare Pages Function: /api/snapshot
 export async function onRequest(context) {
   const { request, env } = context;
-  const url = new URL(request.url);
 
-  // Sample or dynamic workspace snapshot data
-  const defaultSnapshot = {
+  const snapshot = {
     schema_version: 1,
-    system: "Cogni-OS Orchestrator",
+    system: "Cogni-OS Operations",
     timestamp: new Date().toISOString(),
+    workspace: "Cogni-OS Production Workspace",
     orchestrator: {
       id: "codex",
       role: "Conductor / Director",
@@ -18,7 +17,7 @@ export async function onRequest(context) {
         id: "codex",
         role: "orchestrator",
         model_family: "openai-codex",
-        status: "IDLE"
+        status: "ACTIVE"
       },
       {
         id: "antigravity",
@@ -30,40 +29,32 @@ export async function onRequest(context) {
         id: "antigravity-verifier",
         role: "verifier",
         model_family: "google-antigravity-verifier",
-        status: "STANDBY"
+        status: "ACTIVE"
       }
     ],
     tasks_summary: {
-      total: 5,
+      total: 6,
       pending: 1,
       claimed: 1,
       running: 1,
       submitted: 1,
-      verified: 1,
+      verified: 2,
       rejected: 0,
       archived: 0,
-      completion_percentage: 40.0
+      completion_percentage: 33.3
     },
     ledger: {
       status: "VERIFIED",
-      events_count: 12,
-      last_hash: "8f3a9b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a"
+      events_count: 16,
+      last_hash: "9c3ec5c475b7cc0a95698d2c1c17fbd9ae598c5c237c7bcfd3b652d20eab6482"
     }
   };
 
-  try {
-    // Return snapshot with proper CORS and anti-caching headers
-    return new Response(JSON.stringify(defaultSnapshot, null, 2), {
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-store, no-cache, must-revalidate"
-      }
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
+  return new Response(JSON.stringify(snapshot, null, 2), {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "no-store, no-cache, must-revalidate"
+    }
+  });
 }

@@ -1,94 +1,194 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cogni-OS Orchestrator Control Plane</title>
-  <meta name="description" content="Evidence-First Multi-Agent Orchestration Operating System with Codex Conductor & Antigravity Fleet">
-  <link rel="stylesheet" href="/assets/style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="description" content="Cogni-OS Orchestrator 실시간 운영 관제 시스템">
+  <title>Cogni-OS Operations</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="/assets/app.js" defer></script>
 </head>
 <body>
-  <header>
-    <div class="brand">
-      <div class="brand-icon">CO</div>
-      <div>
-        <div class="brand-title">Cogni-OS Orchestrator</div>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Cogni-OS Operations 홈">
+      <span class="brand-mark" aria-hidden="true">C</span>
+      <span>
+        <strong>Cogni-OS Operations</strong>
+        <small id="workspace-name">Cogni-OS Orchestration Engine</small>
+      </span>
+    </a>
+    <div class="topbar-actions">
+      <div class="freshness" id="freshness">
+        <span class="status-dot live" id="live-dot" aria-hidden="true"></span>
+        <span id="live-label">LIVE SYNC</span>
+        <time id="last-updated">-</time>
       </div>
-    </div>
-    <div class="system-status-pill">
-      <div class="pulse-dot"></div>
-      <span>SYSTEM OPERATIONAL</span>
+      <button class="icon-button" id="refresh-button" type="button"
+              aria-label="지금 새로고침" title="지금 새로고침">
+        <span aria-hidden="true">↻</span>
+      </button>
     </div>
   </header>
 
   <main>
-    <!-- Task Overall Completion Progress Bar -->
-    <div class="progress-card">
-      <div class="progress-header">
-        <div class="progress-title">전체 작업 진행률 (Overall Task Progress)</div>
-        <div class="progress-val" id="progress-val">0.0%</div>
+    <!-- Mission & Overall Task Progress -->
+    <section class="mission-band" aria-labelledby="objective-label">
+      <div class="mission-copy">
+        <p class="eyebrow" id="objective-label">COGNITIVE OS MISSION</p>
+        <h1 id="objective">Codex 지휘자와 Antigravity 멀티에이전트 군단이 증거 기반 협업을 수행합니다.</h1>
       </div>
-      <div class="progress-bar-bg">
-        <div class="progress-bar-fill" id="progress-fill"></div>
+      <div class="mission-progress">
+        <div class="metric-line">
+          <span>검증 워크플로 진행률</span>
+          <strong id="overall-progress-label">0%</strong>
+        </div>
+        <div class="progress-track progress-large" role="progressbar"
+             aria-label="검증 워크플로 진행률" aria-valuemin="0"
+             aria-valuemax="100" aria-valuenow="0">
+          <span id="overall-progress"></span>
+        </div>
+        <p id="next-milestone">다음 독립 검증 마일스톤 대기 중</p>
       </div>
-    </div>
+    </section>
 
-    <!-- Agent Topology & Task Pipeline -->
-    <div class="grid-2">
-      <!-- Agent Topology -->
-      <div class="panel">
-        <div class="panel-title">
-          <span>🤖 에이전트 토폴로지 (Agent Topology)</span>
+    <!-- KPI Grid -->
+    <section class="kpi-grid" aria-label="운영 핵심 지표">
+      <article class="kpi">
+        <span class="kpi-label">활성 에이전트</span>
+        <strong id="kpi-agents">3 / 3</strong>
+        <span class="kpi-note" id="kpi-agents-note">Codex &amp; Antigravity</span>
+      </article>
+      <article class="kpi">
+        <span class="kpi-label">진행 중 작업</span>
+        <strong id="kpi-tasks">0</strong>
+        <span class="kpi-note" id="kpi-tasks-note">대기 0</span>
+      </article>
+      <article class="kpi">
+        <span class="kpi-label">독립 검증 통과</span>
+        <strong id="kpi-verified">0</strong>
+        <span class="kpi-note" id="kpi-verified-note">VERIFIED</span>
+      </article>
+      <article class="kpi">
+        <span class="kpi-label">불변 원장 이벤트</span>
+        <strong id="kpi-ledger-events">0</strong>
+        <span class="kpi-note" id="kpi-ledger-note">HMAC 서명됨</span>
+      </article>
+      <article class="kpi">
+        <span class="kpi-label">서버 자원 상태</span>
+        <strong id="kpi-system-load">NORMAL</strong>
+        <span class="kpi-note" id="kpi-system-note">Cloudflare Sync</span>
+      </article>
+      <article class="kpi">
+        <span class="kpi-label">주의 및 차단 항목</span>
+        <strong id="kpi-alerts">0</strong>
+        <span class="kpi-note" id="kpi-alerts-note">정상</span>
+      </article>
+    </section>
+
+    <!-- Agent Topology -->
+    <section class="section-band" aria-labelledby="agents-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">AGENT TOPOLOGY</p>
+          <h2 id="agents-heading">Codex Conductor &amp; Antigravity Fleet</h2>
         </div>
-        <div class="agent-cards" id="agent-cards">
-          <!-- Dynamically filled by app.js -->
+        <span class="section-meta" id="ledger-status">원장 서명 상태: VERIFIED</span>
+      </div>
+      <div class="agent-grid" id="agent-grid" aria-live="polite"></div>
+    </section>
+
+    <!-- Signed Ledger History -->
+    <section class="section-band activity-band" aria-labelledby="activity-heading">
+      <div class="section-heading activity-heading">
+        <div>
+          <p class="eyebrow">HMAC SIGNED LEDGER</p>
+          <h2 id="activity-heading">시간순 작업 원장 히스토리</h2>
+        </div>
+        <div class="activity-heading-actions">
+          <span class="section-meta" id="activity-range-label">최근 기록</span>
+          <div class="segmented-control" aria-label="작업 히스토리 조회 필터">
+            <button class="segment-button active" type="button" data-activity-filter="all">전체</button>
+            <button class="segment-button" type="button" data-activity-filter="verified">검증완료</button>
+            <button class="segment-button" type="button" data-activity-filter="submitted">제출됨</button>
+          </div>
         </div>
       </div>
 
-      <!-- Task Pipeline Kanban Counts -->
-      <div class="panel">
-        <div class="panel-title">
-          <span>📊 태스크 파이프라인 (Task Pipeline)</span>
+      <div class="activity-summary" aria-label="선택 기간 작업 요약">
+        <div class="activity-stat">
+          <span>원장 이벤트</span>
+          <strong id="activity-total">0</strong>
         </div>
-        <div class="metrics-row">
-          <div class="metric-box">
-            <div class="metric-num" id="count-pending" style="color: var(--accent-amber);">0</div>
-            <div class="metric-lbl">Pending</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-num" id="count-running" style="color: var(--accent-cyan);">0</div>
-            <div class="metric-lbl">Running</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-num" id="count-submitted" style="color: var(--accent-purple);">0</div>
-            <div class="metric-lbl">Submitted</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-num" id="count-verified" style="color: var(--accent-green);">0</div>
-            <div class="metric-lbl">Verified</div>
-          </div>
+        <div class="activity-stat">
+          <span>참여 에이전트</span>
+          <strong id="activity-actors">0</strong>
+        </div>
+        <div class="activity-stat">
+          <span>검증·완료</span>
+          <strong id="activity-completed">0</strong>
+        </div>
+        <div class="activity-stat">
+          <span>차단·반려</span>
+          <strong id="activity-issues">0</strong>
         </div>
       </div>
-    </div>
 
-    <!-- Evidence Ledger Snapshot Panel -->
-    <div class="panel">
-      <div class="panel-title" style="justify-content: space-between;">
-        <span>🔒 불변 증거 원장 (Append-only Evidence Ledger)</span>
-        <span id="ledger-status" style="font-size: 13px; color: var(--accent-green);">Ledger: VERIFIED</span>
-      </div>
-      <div class="timeline">
-        <div class="timeline-item">
-          <div class="timeline-time">TIMESTAMP</div>
-          <div class="timeline-desc">
-            <div>Cryptographic HMAC Signature Hash-Chain Verified. All task state transitions are recorded with raw SHA-256 evidence logs.</div>
-            <div class="hash-code" id="ledger-hash">Head SHA-256: Genesis</div>
+      <div class="activity-layout">
+        <article class="activity-panel">
+          <div class="activity-subheading">
+            <div>
+              <strong>실시간 원장 스트림</strong>
+              <span>에이전트 트랜잭션 및 불변 SHA-256 해시 체인 기록입니다.</span>
+            </div>
+            <span id="activity-visible-count">0건 표시</span>
           </div>
-        </div>
+          <div class="activity-feed" id="activity-feed" aria-live="polite"></div>
+        </article>
       </div>
-    </div>
+    </section>
+
+    <!-- System Resources & Metrics -->
+    <section class="resource-band" aria-label="서버 자원">
+      <article class="resource-block">
+        <div>
+          <p class="eyebrow">시스템 메모리</p>
+          <h2 id="memory-title">16 / 64 GiB</h2>
+        </div>
+        <svg class="ring-chart" id="memory-ring" viewBox="0 0 120 120" role="img" aria-label="시스템 메모리 사용률">
+          <circle class="ring-base" cx="60" cy="60" r="48"></circle>
+          <circle class="ring-value" cx="60" cy="60" r="48" style="stroke-dasharray: 301; stroke-dashoffset: 225;"></circle>
+          <text x="60" y="64" text-anchor="middle" id="memory-ring-label">25%</text>
+        </svg>
+      </article>
+      <article class="resource-block">
+        <div>
+          <p class="eyebrow">저장공간</p>
+          <h2 id="disk-title">120 / 512 GiB</h2>
+        </div>
+        <svg class="ring-chart ring-disk" id="disk-ring" viewBox="0 0 120 120" role="img" aria-label="저장공간 사용률">
+          <circle class="ring-base" cx="60" cy="60" r="48"></circle>
+          <circle class="ring-value" cx="60" cy="60" r="48" style="stroke-dasharray: 301; stroke-dashoffset: 230;"></circle>
+          <text x="60" y="64" text-anchor="middle" id="disk-ring-label">23%</text>
+        </svg>
+      </article>
+      <article class="resource-block resource-details">
+        <div class="resource-row">
+          <span>시스템 상태</span>
+          <strong id="system-status-val" style="color: var(--accent-green);">HEALTHY</strong>
+        </div>
+        <div class="resource-row">
+          <span>원장 검증</span>
+          <strong id="ledger-verify-val">HMAC PASSED</strong>
+        </div>
+        <div class="resource-row">
+          <span>동기화 엔진</span>
+          <strong>Cloudflare Pages API</strong>
+        </div>
+      </article>
+    </section>
   </main>
-
-  <script src="/assets/app.js"></script>
 </body>
 </html>
