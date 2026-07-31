@@ -13,10 +13,8 @@ MAX_CLOCK_SKEW_SECONDS = "300"
 # keyring secret named INGEST_HMAC_KEYS. Store one to four key-id/secret pairs,
 # for example {"publisher-2026q3":"<32-256-char-random-secret>"}, with
 # `wrangler pages secret put INGEST_HMAC_KEYS`; never commit the real value.
-# The database ID is intentionally not fabricated or committed here; bind the
-# actual Cloudflare resource before deployment.
-#
-# [[d1_databases]]
-# binding = "MONITOR_DB"
-# database_name = "cogni-os-monitoring"
-# database_id = "<REAL_CLOUDFLARE_D1_DATABASE_ID>"
+# This ID is the actual account resource created for the evidence dashboard.
+[[d1_databases]]
+binding = "MONITOR_DB"
+database_name = "cogni-os-monitoring"
+database_id = "2cd7f106-b05f-46ec-b9d1-2b9f40b2edd1"

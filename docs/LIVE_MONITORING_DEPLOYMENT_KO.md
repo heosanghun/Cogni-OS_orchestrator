@@ -60,6 +60,7 @@ COGNI-SNAPSHOT-V2
 publisher는 다음 운영 메타데이터만 외부 관제 채널에 전송합니다.
 
 - task ID, 제목, 담당, 상태, 시각
+- P01~P11의 신뢰 상태와 `trusted_complete / 11` 기반 진행률
 - 검증 신뢰 상태와 원장 head hash
 - 실행 주체의 공개 상태 및 attestation 여부
 - GPU 0~5의 사용률·VRAM·온도·전력
@@ -156,6 +157,17 @@ $env:COGNI_MONITOR_INGEST_SECRET = "<matching-32-256-char-secret>"
 $env:COGNI_PYTHON = "C:\Path\To\python.exe"
 .\scripts\run_monitor_publisher.ps1 -WorkspaceRoot $PWD -IncludeGpu
 ```
+
+운영 PC에서는 평문 환경 변수를 장기 저장하지 않고, 현재 Windows
+사용자와 PC에 묶인 DPAPI `SecureString`을
+`.runtime\cogni-monitor-secret.clixml`에 저장할 수 있습니다.
+`.runtime/`은 Git에서 제외됩니다. 이 파일이 있으면 래퍼가 환경 변수보다
+후순위로 읽으며, 기본 key ID는 `publisher-2026q3`입니다. 다른 key ID는
+`COGNI_MONITOR_KEY_ID`로 명시합니다. DPAPI 파일은 다른 사용자나 다른
+PC로 복사해 재사용하지 않습니다. sequence와 publisher lock도 기본적으로
+`.runtime\monitor-publisher`에 저장하므로, 운영 원장이 읽기 전용으로
+마운트되어 있어도 메타데이터를 게시할 수 있습니다. 이 디렉터리를
+초기화하면 서버의 단조 증가 sequence 게이트가 낮은 값을 거절합니다.
 
 GPU를 읽지 않는 제어 평면에서는 `--include-gpu` 또는 `-IncludeGpu`를
 생략합니다. 이때 화면은 `GPU telemetry DISABLED`를 표시하며 수치를

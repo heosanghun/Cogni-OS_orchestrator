@@ -19,9 +19,55 @@ import {
 const SECRET = "test-secret-that-is-longer-than-thirty-two-characters";
 const KEY_ID = "publisher-2026-07";
 const WORKSPACE = "5988e0651ec1afcdeb87b58ccc8d68ea";
+const ROADMAP_PHASE_IDS = [
+  "P01-TRUTH",
+  "P02-ORCHESTRATION",
+  "P03-EVIDENCE",
+  "P04-WORLD",
+  "P05-FINANCE",
+  "P06-TWIN",
+  "P07-WORKSPACE",
+  "P08-CORE",
+  "P09-HARNESS",
+  "P10-COGNIBOARD",
+  "P11-RELEASE",
+];
+
+function roadmapFixture(tasks) {
+  const byId = new Map(tasks.map((task) => [task.id, task]));
+  const phases = ROADMAP_PHASE_IDS.map((id, index) => {
+    const state = byId.get(id)?.state || "missing";
+    return {
+      id,
+      title: `Phase ${index + 1}`,
+      state,
+      trusted_complete: state === "verified" || state === "archived",
+      prerequisites: index === 0 ? [] : [ROADMAP_PHASE_IDS[index - 1]],
+    };
+  });
+  const trusted = phases.filter((phase) => phase.trusted_complete).length;
+  return {
+    schema_version: 1,
+    total: 11,
+    trusted_complete: trusted,
+    progress_percent: Math.round((trusted / 11) * 1000) / 10,
+    progress_basis: "trusted-roadmap-task-states",
+    phases,
+  };
+}
 
 function payload(overrides = {}) {
   const observedAt = overrides.observed_at || new Date().toISOString();
+  const tasks = overrides.tasks || [
+    {
+      id: "T-1",
+      title: "Test",
+      owner: "codex",
+      state: "pending",
+      progress: null,
+      updated_at: observedAt,
+    },
+  ];
   return {
     schema_version: "1.0",
     system: "Cogni-OS Operations",
@@ -50,6 +96,7 @@ function payload(overrides = {}) {
       completion_percentage: 0,
       progress_basis: "trusted-ledger-task-states",
     },
+    roadmap: overrides.roadmap || roadmapFixture(tasks),
     agents: [
       {
         id: "codex",
@@ -57,16 +104,7 @@ function payload(overrides = {}) {
         status: "UNATTESTED",
       },
     ],
-    tasks: [
-      {
-        id: "T-1",
-        title: "Test",
-        owner: "codex",
-        state: "pending",
-        progress: null,
-        updated_at: observedAt,
-      },
-    ],
+    tasks,
     ledger_events: [],
     ledger: {
       status: "VERIFIED",
@@ -599,6 +637,16 @@ test("task summary must be derived from task records", () => {
   assert.throws(
     () => validateSnapshot(value),
     /tasks_summary\.trusted_verified/,
+  );
+});
+
+test("roadmap progress must be derived from the canonical phase tasks", () => {
+  const value = payload();
+  value.roadmap.trusted_complete = 11;
+  value.roadmap.progress_percent = 100;
+  assert.throws(
+    () => validateSnapshot(value),
+    /roadmap\.trusted_complete/,
   );
 });
 

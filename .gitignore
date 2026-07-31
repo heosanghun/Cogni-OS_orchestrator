@@ -12,6 +12,7 @@ __pycache__/
 .env
 .env.*
 .wrangler/
+.runtime/
 tests/web/server-*.log
 tests/web/server-*.err
 

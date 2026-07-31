@@ -151,3 +151,19 @@ cogni dashboard .\cogni-workspace --port 8484
 
 Cloudflare 실시간 관제의 D1, HMAC V2 keyring, 키 회전 및 fail-closed
 배포 절차는 `docs/LIVE_MONITORING_DEPLOYMENT_KO.md`에 있습니다.
+
+## Phase 1~11 실행 로드맵
+
+계획을 문서에만 두지 않고 검증 가능한 task graph로 등록합니다.
+
+```powershell
+$env:PYTHONPATH = "$PWD\src"
+python -m cogni_os.cli roadmap bootstrap C:\comunity `
+  --actor codex `
+  --owner antigravity
+
+python -m cogni_os.cli roadmap status C:\comunity
+```
+
+진행률은 Phase task 중 `verified` 또는 `archived` 상태만 계산합니다.
+상세 계약은 `docs/PHASE_1_11_EXECUTION_PLAN_KO.md`에 있습니다.

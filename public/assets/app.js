@@ -99,6 +99,14 @@ function evidenceSafeView(raw) {
       completion_percentage: null,
       progress_basis: "unavailable",
     },
+    roadmap: {
+      schema_version: 1,
+      total: 11,
+      trusted_complete: 0,
+      progress_percent: null,
+      progress_basis: "unavailable",
+      phases: [],
+    },
     agents: [],
     tasks: [],
     ledger_events: [],
@@ -199,8 +207,8 @@ function renderTrust(data) {
 }
 
 function renderMission(data) {
-  const summary = data.tasks_summary || {};
-  const percentage = finite(summary.completion_percentage);
+  const roadmap = data.roadmap || {};
+  const percentage = finite(roadmap.progress_percent);
   text("overall-progress-label", formatPercent(percentage));
   const bar = byId("overall-progress");
   const track = byId("overall-progress-track");
@@ -222,11 +230,16 @@ function renderMission(data) {
     gateNode.className = `release-gate ${stateClass(gate.status || "NO_GO")}`;
   }
   const reasons = asArray(gate.reasons);
+  const nextPhase = asArray(roadmap.phases).find(
+    (phase) => phase.trusted_complete !== true,
+  );
   text(
     "next-milestone",
     gate.status === "PASS"
       ? "독립 검증된 릴리스 증거 보관"
-      : reasons[0] || "릴리스 증거가 부족합니다.",
+      : nextPhase
+        ? `${nextPhase.id} · ${nextPhase.title} — ${nextPhase.state}`
+        : reasons[0] || "릴리스 증거가 부족합니다.",
   );
 }
 
@@ -247,6 +260,7 @@ function renderKpis(data) {
   );
 
   const summary = data.tasks_summary || {};
+  const roadmap = data.roadmap || {};
   text("kpi-tasks", live ? summary.running ?? 0 : null);
   text(
     "kpi-tasks-note",
@@ -254,10 +268,12 @@ function renderKpis(data) {
       ? `대기 ${summary.pending ?? 0} · 제출 ${summary.submitted ?? 0}`
       : "LIVE 증거 대기",
   );
-  text("kpi-verified", live ? summary.trusted_verified ?? 0 : null);
+  text("kpi-verified", live ? roadmap.trusted_complete ?? 0 : null);
   text(
     "kpi-verified-note",
-    live ? `검증 분쟁 ${summary.verification_disputed ?? 0}` : "LIVE 증거 대기",
+    live
+      ? `Phase ${roadmap.trusted_complete ?? 0} / ${roadmap.total ?? 11} · 검증 분쟁 ${summary.verification_disputed ?? 0}`
+      : "LIVE 증거 대기",
   );
 
   const gpus = asArray(data.gpus);

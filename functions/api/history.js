@@ -24,6 +24,7 @@ async function projectHistoryRow(row, hmacKeys) {
     received_at: row.received_at,
     body_sha256: row.body_sha256,
     tasks_summary: payload.tasks_summary || {},
+    roadmap: payload.roadmap || {},
     gpus: payload.gpus || [],
     resources: payload.resources || {},
     release_gate: payload.release_gate || { status: "NO_GO" },
