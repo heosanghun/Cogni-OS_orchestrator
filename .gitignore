@@ -2,10 +2,18 @@
 .ensemble-runtime/
 .cogni/
 .venv/
+node_modules/
 scratch/
 __pycache__/
 *.egg-info/
 .pytest_cache/
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+.wrangler/
+tests/web/server-*.log
+tests/web/server-*.err
 
 # Editor and operating-system noise.
 .DS_Store

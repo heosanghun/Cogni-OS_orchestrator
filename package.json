@@ -1,0 +1,9 @@
+{
+  "name": "cogni-os-evidence-operations",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/web/*.test.mjs",
+    "check": "node --check public/assets/app.js && node --check functions/_lib/monitoring.js && node --check functions/api/health.js && node --check functions/api/ingest.js && node --check functions/api/snapshot.js && node --check functions/api/history.js"
+  }
+}

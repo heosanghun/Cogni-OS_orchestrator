@@ -5,3 +5,18 @@ pages_build_output_dir = "./public"
 [vars]
 ENVIRONMENT = "production"
 SYSTEM_NAME = "Cogni-OS Orchestrator"
+COGNI_WORKSPACE_ID = "5988e0651ec1afcdeb87b58ccc8d68ea"
+MAX_SNAPSHOT_AGE_SECONDS = "180"
+MAX_CLOCK_SKEW_SECONDS = "300"
+
+# Production requires a D1 binding named MONITOR_DB and an encrypted JSON
+# keyring secret named INGEST_HMAC_KEYS. Store one to four key-id/secret pairs,
+# for example {"publisher-2026q3":"<32-256-char-random-secret>"}, with
+# `wrangler pages secret put INGEST_HMAC_KEYS`; never commit the real value.
+# The database ID is intentionally not fabricated or committed here; bind the
+# actual Cloudflare resource before deployment.
+#
+# [[d1_databases]]
+# binding = "MONITOR_DB"
+# database_name = "cogni-os-monitoring"
+# database_id = "<REAL_CLOUDFLARE_D1_DATABASE_ID>"

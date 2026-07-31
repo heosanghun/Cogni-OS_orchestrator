@@ -1,5 +1,7 @@
 """Unit tests for Cogni-OS Workspace & CLI."""
 
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +18,44 @@ class TestCogniOSWorkspace(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
+    def _commit_fixture(self) -> None:
+        self.validation_helper = self.root / "trusted_validation_helper.py"
+        self.validation_helper.write_text(
+            "import sys\n"
+            "sys.stdout.buffer.write(bytes.fromhex(sys.argv[1]))\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "init"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "core.autocrlf", "false"],
+            cwd=self.root,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "tests@cogni.invalid"],
+            cwd=self.root,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Cogni Tests"],
+            cwd=self.root,
+            check=True,
+        )
+        # Keep the fixture deterministic even when the host has a global
+        # excludes rule for Python files.
+        subprocess.run(
+            ["git", "add", "-f", "trusted_validation_helper.py"],
+            cwd=self.root,
+            check=True,
+        )
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "test fixture"],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+        )
+
     def test_initialize_workspace(self):
         ws = Workspace.initialize(
             self.root,
@@ -23,6 +63,7 @@ class TestCogniOSWorkspace(unittest.TestCase):
             orchestrator="codex",
             preset="cogni-codex-antigravity",
         )
+        self._commit_fixture()
         self.assertEqual(ws.orchestrator, "codex")
         status = ws.status()
         self.assertEqual(status["total_tasks"], 0)
@@ -41,6 +82,7 @@ class TestCogniOSWorkspace(unittest.TestCase):
             orchestrator="codex",
             preset="cogni-codex-antigravity",
         )
+        self._commit_fixture()
 
         # 1. Add Task
         task = ws.add_task(
@@ -80,6 +122,10 @@ class TestCogniOSWorkspace(unittest.TestCase):
         artifact_file.write_bytes(art_bytes)
         import hashlib
         art_sha = hashlib.sha256(art_bytes).hexdigest()
+        worker_raw = report_dir / "worker-test.log"
+        worker_raw_bytes = b"1 passed\n"
+        worker_raw.write_bytes(worker_raw_bytes)
+        worker_raw_sha = hashlib.sha256(worker_raw_bytes).hexdigest()
 
         manifest_file = report_dir / "T1.evidence.json"
         import json
@@ -93,6 +139,8 @@ class TestCogniOSWorkspace(unittest.TestCase):
                     "passed": 1,
                     "failed": 0,
                     "skipped": 0,
+                    "raw_output_path": "worker-test.log",
+                    "raw_output_sha256": worker_raw_sha,
                 }
             ],
             "known_answer_checks": [
@@ -112,12 +160,56 @@ class TestCogniOSWorkspace(unittest.TestCase):
         )
         self.assertEqual(submitted["state"], "submitted")
 
-        # 6. Verify Task with Independent Verifier
+        verifier_dir = ws.reports_dir / "codex"
+        verifier_raw = verifier_dir / "T1-verifier.log"
+        verifier_raw_bytes = b"known-answer independently reproduced\n"
+        verifier_raw.write_bytes(verifier_raw_bytes)
+        verifier_manifest = verifier_dir / "T1.verifier.evidence.json"
+        verifier_manifest.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifacts": [],
+                    "validations": [
+                        {
+                            "command": "python -m unittest discover --independent",
+                            "command_argv": [
+                                sys.executable,
+                                str(self.validation_helper),
+                                verifier_raw_bytes.hex(),
+                            ],
+                            "exit_code": 0,
+                            "passed": 1,
+                            "failed": 0,
+                            "skipped": 0,
+                            "raw_output_path": "T1-verifier.log",
+                            "raw_output_sha256": hashlib.sha256(
+                                verifier_raw_bytes
+                            ).hexdigest(),
+                        }
+                    ],
+                    "known_answer_checks": [
+                        {
+                            "name": "check1-independent",
+                            "expected": 10,
+                            "observed": 10,
+                            "passed": True,
+                        }
+                    ],
+                    "claims": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        # 6. Verify Task with the independent Codex family, not an
+        # Antigravity role-labelled alias.
         verified = ws.verify(
-            actor="antigravity-verifier",
+            actor="codex",
             task_id="T1",
             decision="accept",
             note="Verified clean.",
+            evidence_path=verifier_manifest,
         )
         self.assertEqual(verified["state"], "verified")
 

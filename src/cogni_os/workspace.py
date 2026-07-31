@@ -33,6 +33,7 @@ from .provenance import (
     validate_git_provenance,
     validate_git_source_claim,
 )
+from .trusted_runner import run_trusted_validations
 from .util import (
     atomic_write_json,
     is_relative_to,
@@ -190,7 +191,7 @@ class Workspace:
                 "identity": orchestrator_identity,
             },
         )
-        if preset in ("cogni-codex-antigravity", "antigravity-codex-claude"):
+        if preset == "cogni-codex-antigravity":
             # Register Antigravity primary executant worker
             workspace.add_agent(
                 actor=orchestrator,
@@ -200,7 +201,9 @@ class Workspace:
                 control_principal="antigravity-executant",
                 model_family="google-antigravity",
             )
-            # Register Antigravity independent verifier agent
+            # Register a same-family verifier candidate.  The independence
+            # gate deliberately rejects it for Antigravity submissions;
+            # Codex remains the accountable cross-family verifier.
             workspace.add_agent(
                 actor=orchestrator,
                 agent_id="antigravity-verifier",
@@ -350,13 +353,30 @@ class Workspace:
             if self._task_path(target_id).exists():
                 raise ConfigurationError(f"Task already exists: {target_id}")
             self.get_agent(owner)
+            normalized_prerequisites = [
+                validate_task_id(str(item)) for item in (prerequisites or [])
+            ]
+            if target_id in normalized_prerequisites:
+                raise ConfigurationError("A task cannot depend on itself")
+            if len(normalized_prerequisites) != len(set(normalized_prerequisites)):
+                raise ConfigurationError("Task prerequisites cannot contain duplicates")
+            missing_prerequisites = [
+                item
+                for item in normalized_prerequisites
+                if not self._task_path(item).is_file()
+            ]
+            if missing_prerequisites:
+                raise ConfigurationError(
+                    "Task prerequisites do not exist: "
+                    + ", ".join(missing_prerequisites)
+                )
             record = new_task(
                 task_id=target_id,
                 title=title,
                 description=description,
                 owner=owner,
                 created_by=actor,
-                prerequisites=prerequisites,
+                prerequisites=normalized_prerequisites,
                 allowed_write_roots=allowed_write_roots,
                 permissions=permissions,
                 gates=gates,
@@ -388,6 +408,21 @@ class Workspace:
                 continue
         return tasks
 
+    def _unsatisfied_prerequisites(self, task: dict[str, Any]) -> list[str]:
+        """Return prerequisite IDs that are not independently verified."""
+        unsatisfied: list[str] = []
+        for prerequisite_id in task.get("prerequisites", []):
+            try:
+                prerequisite = self.get_task(str(prerequisite_id))
+            except ConfigurationError:
+                unsatisfied.append(f"{prerequisite_id}:missing")
+                continue
+            if prerequisite.get("state") not in {"verified", "archived"}:
+                unsatisfied.append(
+                    f"{prerequisite_id}:{prerequisite.get('state', 'unknown')}"
+                )
+        return unsatisfied
+
     def claim(
         self,
         *,
@@ -409,6 +444,14 @@ class Workspace:
             with self._task_lock(task["id"]):
                 current = self.get_task(task["id"])
                 if current["state"] != "pending":
+                    continue
+                unsatisfied = self._unsatisfied_prerequisites(current)
+                if unsatisfied:
+                    if task_id:
+                        raise LeaseError(
+                            "Task prerequisites are not verified: "
+                            + ", ".join(unsatisfied)
+                        )
                     continue
                 lease_token = secrets.token_hex(16)
                 lease = {
@@ -519,6 +562,7 @@ class Workspace:
                 e_path,
                 permissions=task["permissions"],
                 gates=task["gates"],
+                allowed_root=self.reports_dir / actor,
             )
             worker_agent = self.get_agent(actor)
             worker_identity = identity_snapshot(actor, worker_agent.get("identity"))
@@ -559,10 +603,15 @@ class Workspace:
         decision: str,
         note: str,
         evidence_path: str | Path | None = None,
+        timeout_seconds: int = 300,
     ) -> dict[str, Any]:
         """Independently verify or reject a submitted task."""
         if decision not in {"accept", "reject"}:
             raise ConfigurationError("Verification decision must be 'accept' or 'reject'")
+        if not note.strip():
+            raise EvidenceError("Verification note must be non-empty")
+        if evidence_path is None:
+            raise EvidenceError("Verifier evidence manifest is required")
         verifier_agent = self.get_agent(actor)
         if verifier_agent["role"] not in {"verifier", "orchestrator"}:
             raise AuthorizationError("Actor role is not authorized for verification")
@@ -584,10 +633,72 @@ class Workspace:
             worker_identity = submitted_event.get("payload", {}).get("worker_identity") if submitted_event else None
             independence = evaluate_independence(worker_identity, verifier_identity)
             
-            if task["gates"].get("require_independent_verification", True) and not independence["independent"]:
+            if not independence["independent"]:
                 raise AuthorizationError(
                     f"Independent verification failed: {', '.join(independence['reasons'])}"
                 )
+
+            verifier_evidence = validate_manifest(
+                Path(evidence_path).resolve(),
+                permissions=task["permissions"],
+                gates=task["gates"],
+                require_command_argv=True,
+                allowed_root=self.reports_dir / actor,
+            )
+            worker_manifest_sha = (
+                task.get("result", {})
+                .get("manifest", {})
+                .get("manifest_sha256")
+            )
+            if (
+                isinstance(worker_manifest_sha, str)
+                and hmac.compare_digest(
+                    worker_manifest_sha.lower(),
+                    verifier_evidence["manifest_sha256"].lower(),
+                )
+            ):
+                raise EvidenceError(
+                    "Verifier evidence must be independently produced, not the "
+                    "worker submission manifest"
+                )
+            trusted_validation = run_trusted_validations(
+                workspace_root=self.root,
+                runs_root=self.runs_dir,
+                task_id=task_id,
+                attempt=task["attempt"],
+                actor=actor,
+                manifest=verifier_evidence,
+                gpu_allowed=bool(task["permissions"].get("gpu", False)),
+                network_allowed=bool(task["permissions"].get("network", False)),
+                timeout_seconds=timeout_seconds,
+            )
+            trusted_files = [
+                {
+                    "path": trusted_validation["receipt_path"],
+                    "sha256": trusted_validation["receipt_sha256"],
+                    "kind": "trusted_runner_receipt",
+                    "force": True,
+                },
+                *[
+                    {
+                        "path": validation["output_path"],
+                        "sha256": validation["output_sha256"],
+                        "kind": "trusted_runner_output",
+                        "force": True,
+                    }
+                    for validation in trusted_validation["validations"]
+                ],
+            ]
+            verifier_bundle = archive_evidence_bundle(
+                submissions_root=self.submissions_dir,
+                task_id=task_id,
+                attempt=task["attempt"],
+                label="verifier",
+                report=None,
+                manifest=verifier_evidence,
+                max_artifact_bytes=self.config["defaults"]["max_evidence_bytes"],
+                extra_files=trusted_files,
+            )
             
             verification_record = {
                 "verified_at": utc_now(),
@@ -595,6 +706,11 @@ class Workspace:
                 "decision": decision,
                 "note": note.strip(),
                 "independence": independence,
+                "verifier_evidence": {
+                    "manifest_sha256": verifier_evidence["manifest_sha256"],
+                    "bundle": verifier_bundle,
+                },
+                "trusted_validation": trusted_validation,
             }
             updated = transition(task, target_state, verification=verification_record)
             self.ledger.append(
@@ -605,6 +721,8 @@ class Workspace:
                     "task": updated,
                     "verifier_identity": verifier_identity,
                     "independence": independence,
+                    "verifier_evidence": verification_record["verifier_evidence"],
+                    "trusted_validation": trusted_validation,
                 },
             )
             atomic_write_json(self._task_path(task_id), updated)

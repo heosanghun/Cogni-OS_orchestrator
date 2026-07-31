@@ -174,6 +174,7 @@ def _cmd_task_verify(args: argparse.Namespace) -> None:
             decision=args.decision,
             note=args.note,
             evidence_path=args.evidence,
+            timeout_seconds=args.timeout_seconds,
         )
     )
 
@@ -323,7 +324,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_task_verify.add_argument("--id", required=True, help="Task ID")
     p_task_verify.add_argument("--decision", required=True, choices=["accept", "reject"], help="Verification decision")
     p_task_verify.add_argument("--note", required=True, help="Verification rationale note")
-    p_task_verify.add_argument("--evidence", help="Path to verifier evidence manifest JSON")
+    p_task_verify.add_argument(
+        "--evidence",
+        required=True,
+        help="Path to independently produced verifier evidence manifest JSON",
+    )
+    p_task_verify.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=300,
+        help="Per-command trusted verifier timeout (1-300 seconds)",
+    )
     p_task_verify.set_defaults(func=_cmd_task_verify)
 
     p_task_list = task_subs.add_parser("list", help="List all tasks")

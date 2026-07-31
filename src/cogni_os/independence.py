@@ -10,6 +10,16 @@ from .errors import ConfigurationError
 from .util import validate_agent_id
 
 IDENTITY_VALUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
+MODEL_ROLE_SUFFIXES = {
+    "advisor",
+    "auditor",
+    "checker",
+    "executant",
+    "executor",
+    "reviewer",
+    "verifier",
+    "worker",
+}
 
 
 def validate_identity_value(value: str, *, field: str) -> str:
@@ -22,6 +32,21 @@ def validate_identity_value(value: str, *, field: str) -> str:
             "(maximum 128 characters)"
         )
     return normalized
+
+
+def canonical_model_family(value: str) -> str:
+    """Collapse role-labelled aliases onto one underlying model family.
+
+    A verifier name is not an independent model merely because ``-verifier``
+    was appended to the worker's family label.  Strip only well-known terminal
+    role labels, preserving vendor/model identifiers such as ``openai-codex``.
+    """
+    normalized = validate_identity_value(value, field="model_family").lower()
+    parts = re.split(r"([:/._-])", normalized)
+    while len(parts) >= 3 and parts[-1] in MODEL_ROLE_SUFFIXES:
+        parts = parts[:-2]
+    canonical = "".join(parts).rstrip(":/._-")
+    return canonical or normalized
 
 
 def build_identity(
@@ -90,7 +115,14 @@ def evaluate_independence(
             reasons.append("same_actor")
         if worker.get("control_principal") == verifier.get("control_principal"):
             reasons.append("same_control_principal")
-        if worker.get("model_family") == verifier.get("model_family"):
+        worker_family = worker.get("model_family")
+        verifier_family = verifier.get("model_family")
+        if (
+            isinstance(worker_family, str)
+            and isinstance(verifier_family, str)
+            and canonical_model_family(worker_family)
+            == canonical_model_family(verifier_family)
+        ):
             reasons.append("same_model_family")
         worker_lineage = set(map(str, worker.get("alias_chain", [])))
         verifier_lineage = set(map(str, verifier.get("alias_chain", [])))

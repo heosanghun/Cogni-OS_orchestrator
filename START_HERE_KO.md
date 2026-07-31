@@ -1,148 +1,133 @@
-# 네 개 AI 화면을 로컬 council에 연결하기
+# Cogni-OS 시작하기
 
-이 문서는 Antigravity, Cursor, Codex App, Claude를 `C:\comunity`의
-로컬 메시지 버스에 연결하는 실제 시작점이다.
+현재 공식 경로는 Python `cogni` task plane과 Codex–Antigravity
+읽기 전용 pair workbench 두 가지입니다. 사용자가 에이전트 사이의
+메시지를 복사해 전달하지 않습니다.
 
-## 현재 상태
-
-- 네 앱 화면이 열려 있는 것은 확인됐지만 `C:\comunity`에 연결됐다는
-  뜻은 아니다.
-- 현재 활성 task와 pending message는 없다. 지금 방 프롬프트를 실행하면
-  `QUEUE_EMPTY` 또는 `WAITING_FOR_ADVISORS`가 정상이다.
-- Markdown 파일은 GUI 채팅을 스스로 깨우지 않는다.
-- `orchestrator\watch.ps1`은 상태와 timeout만 처리하며 모델을 호출하지
-  않는다.
-- 따라서 현재 모드는 `PREPARED_MANUAL`이다. 네 앱이 열린 한 turn 안에서
-  `room.ps1 wait`를 계속 실행하면 live smoke loop는 가능하지만, 장기
-  무인 운용에는 제품별 CLI/API/Sidecar/Scheduled adapter가 필요하다.
-
-## 권장 연결
-
-| 화면 | 연결 방식 | 역할 |
-|---|---|---|
-| Antigravity | `C:\comunity`를 Project에 추가하고 Local Mode | architecture advisor |
-| Cursor | `C:\comunity`를 로컬 workspace로 열기 | code-structure advisor |
-| Codex App | `C:\comunity`를 local project로 열기 | sole executor |
-| Claude | 일반 웹 chat 대신 Claude Code Remote Control/Cowork local folder | evidence advisor |
-
-일반 `claude.ai/chat`은 로컬 폴더를 실시간으로 읽지 못한다. 업로드한
-파일은 snapshot일 뿐 local bus가 아니다. Claude 방은 먼저
-`C:\comunity\CLAUDE.md`를 직접 읽을 수 있는지 시험해야 한다.
-
-## 최초 한 번
+## 1. 사전 확인
 
 ```powershell
 Set-Location C:\comunity
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File C:\comunity\orchestrator\ensemble.ps1 init `
-  -WorkspaceRoot C:\comunity
-
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File C:\comunity\orchestrator\ensemble.ps1 probe `
-  -WorkspaceRoot C:\comunity
+$env:PYTHONPATH = "$PWD\src"
+python -m cogni_os.cli status .
+python -m cogni_os.cli doctor .
 ```
 
-제품 코드 대상은 clean Git 작업트리를 사용한다. 예:
+설치된 console script를 사용하면 `python -m cogni_os.cli` 대신
+`cogni`를 사용할 수 있습니다. 기존 workspace가 아니라 새 경로라면:
 
 ```powershell
-$TaskId = (
+cogni init .\workspace `
+  --name "Cogni-OS Workspace" `
+  --orchestrator codex `
+  --control-principal codex-conductor `
+  --model-family openai-codex `
+  --preset cogni-codex-antigravity
+```
+
+## 2. 역할의 실제 의미
+
+| 주체 | 운영 책임 | 독립 검증 여부 |
+|---|---|---|
+| Codex | 지휘, task 생성, 경계 설정, 별도 재현, 최종 판정 | 책임 검증자 |
+| Antigravity | 구현·테스트·증거 제출 또는 읽기 전용 자문 | 자기 결과 검증 불가 |
+| `antigravity-verifier` | 같은 계열의 추가 검토 라벨 | 독립 검증 아님 |
+
+독립성은 이름으로 결정하지 않습니다. 같은 canonical model family,
+같은 control principal 또는 공유 alias lineage는 신뢰 게이트에서
+거절됩니다.
+
+## 3. task plane
+
+Codex가 한 번에 하나의 검증 가능한 목표를 등록합니다.
+
+```powershell
+cogni task add . `
+  --actor codex `
+  --id T-101 `
+  --owner antigravity `
+  --title "단일 구현 목표" `
+  --description "완료 조건, 테스트, 중단 조건, 재현 명령" `
+  --allow-write src `
+  --allow-write tests
+```
+
+Antigravity가 claim 응답의 lease token을 사용해 실행·제출합니다.
+
+```powershell
+cogni task claim . --actor antigravity --id T-101
+cogni task start . `
+  --actor antigravity --id T-101 --lease-token "<CLAIM_TOKEN>"
+cogni task submit . `
+  --actor antigravity --id T-101 --lease-token "<CLAIM_TOKEN>" `
+  --report .\reports\antigravity\T-101.md `
+  --evidence .\reports\antigravity\T-101.evidence.json
+```
+
+Codex는 수행 manifest를 재사용하지 않고 별도 known-answer 실행으로
+새 검증 manifest를 만든 뒤 판정합니다.
+
+```powershell
+cogni task verify . `
+  --actor codex `
+  --id T-101 `
+  --decision accept `
+  --note "별도 환경에서 재현 완료" `
+  --evidence .\reports\codex\T-101.verifier.evidence.json
+```
+
+## 4. pair workbench
+
+pair 경로는 두 주체가 동일한 Git snapshot을 읽고 R1/R2 검토와
+계획 후보를 만드는 보조 평면입니다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File C:\comunity\orchestrator\pair.ps1 probe `
+  -WorkspaceRoot C:\comunity
+
+$PairId = (
   powershell.exe -NoProfile -ExecutionPolicy Bypass `
-    -File C:\comunity\orchestrator\ensemble.ps1 new-task `
+    -File C:\comunity\orchestrator\pair.ps1 new-task `
     -WorkspaceRoot C:\comunity `
-    -Title "한 가지 검증 가능한 목표" `
-    -Goal "완료 조건, 실행할 테스트, 중단 조건을 구체적으로 기록" `
-    -TargetWorkspace "C:\Project\System1.5"
+    -Title "검증 가능한 계획 목표" `
+    -Goal "완료 조건과 hard stop을 포함한 읽기 전용 분석" `
+    -TargetWorkspace "C:\Project\Target"
   | Select-Object -Last 1
 ).Trim()
 
-$TaskId
-```
-
-그 다음 아래 네 파일의 전체 내용을 해당 화면에 한 번씩 붙여넣는다.
-
-- `ensemble\manual-ui\prompts\ANTIGRAVITY_BOOTSTRAP_KO.md`
-- `ensemble\manual-ui\prompts\CURSOR_BOOTSTRAP_KO.md`
-- `ensemble\manual-ui\prompts\CODEX_APP_BOOTSTRAP_KO.md`
-- `ensemble\manual-ui\prompts\CLAUDE_BOOTSTRAP_KO.md`
-
-메모장으로 열거나, 아래처럼 한 방의 프롬프트를 클립보드에 복사할 수
-있다. 파일명만 각 agent에 맞게 바꾼다.
-
-```powershell
-Get-Content -Raw -Encoding UTF8 `
-  C:\comunity\ensemble\manual-ui\prompts\ANTIGRAVITY_BOOTSTRAP_KO.md |
-  Set-Clipboard
-```
-
-## 방 도우미
-
-각 에이전트는 자기 pending message만 확인한다.
-
-```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File C:\comunity\orchestrator\room.ps1 next `
+  -File C:\comunity\orchestrator\pair.ps1 status `
   -WorkspaceRoot C:\comunity `
-  -Agent antigravity
+  -TaskId $PairId
 ```
 
-새 메시지를 최대 10분 기다리려면:
+실제 adapter pin과 권한 경계가 준비된 호스트에서만
+`pair-sidecar.ps1`을 구동합니다. binary SHA mismatch, write-boundary
+위반, timeout 또는 변조는 `PAIR_SAFE_STOP`으로 끝납니다.
+`PAIR_CANDIDATE`도 제품 수정·commit·push·배포 권한은 아닙니다.
+
+상세 옵션과 증거 파일 구조는 `PAIR_FAST_START_KO.md`를 따릅니다.
+
+## 5. 변경 후 필수 검증
 
 ```powershell
+$env:PYTHONPATH = "$PWD\src"
+python -m unittest discover -s src\cogni_os\tests -v
+
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File C:\comunity\orchestrator\room.ps1 wait `
-  -WorkspaceRoot C:\comunity `
-  -Agent antigravity `
-  -TimeoutSeconds 600
+  -File .\tests\pair_workbench_test.ps1
+
+npm run check
+npm test
 ```
 
-응답을 envelope의 `output_path`에 쓴 뒤, 출력된
-`ROOM_MESSAGE_PATH`를 사용해 제출한다.
+테스트를 실행하지 못했다면 완료로 표현하지 않고, 누락된 runtime과
+재현 명령을 보고합니다.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File C:\comunity\orchestrator\room.ps1 submit `
-  -WorkspaceRoot C:\comunity `
-  -Agent antigravity `
-  -MessagePath "<ROOM_MESSAGE_PATH>"
-```
+## 6. 증거 보존
 
-`room.ps1`은 stale inbox를 제외하고 coordinator가 발행한 pending
-message만 선택한다. 모델을 호출하거나 GUI를 깨우지는 않는다.
-
-## 대화 순서
-
-```text
-Antigravity + Cursor + Claude: R1 blind advice
-  -> 세 advisor: R2 cross-critique
-  -> Codex App: executor plan
-  -> 세 advisor: plan vote
-  -> Codex App: authorized implementation + tests
-  -> 세 advisor: post-review vote
-  -> READY_TO_COMMIT
-```
-
-이 구조는 자유로운 난상토론보다 의도적으로 엄격하다. R1을 서로 보지
-않고 작성해야 세 모델이 한 목소리로 수렴하는 집단사고를 줄일 수 있다.
-
-## 승인창 원칙
-
-프롬프트는 앱 자체의 보안창을 제거할 수 없다. 각 앱에서 허용하는 경우
-프로젝트 범위를 `C:\comunity`와 명시된 target으로 좁히고, 읽기와
-`powershell.exe ... room.ps1` 실행만 지속 허용한다. broad
-`Unrestricted`, `yolo`, 전체 디스크 허용은 사용하지 않는다.
-
-각 agent는 사용자에게 직접 승인 질문을 반복하지 않는다. hard stop은
-자신의 산출물에 기록하고, coordinator만 `APPROVAL_PACKET.md` 하나를
-만들어 같은 state/version에 대해 한 번만 요청한다.
-
-## GitHub 경계
-
-- 대화 메시지를 매번 GitHub에 push하지 않는다.
-- advisor와 executor는 직접 push, deploy, merge하지 않는다.
-- 검증된 `DECISION.md`, `MINORITY_REPORT.md`, evidence index와 candidate
-  commit만 task branch checkpoint로 게시한다.
-- `main` merge와 공개 발표는 별도 인간 경계다.
-
-세부 설명은 `ensemble\manual-ui\README_KO.md`와
-`ensemble\control\RUN_MODE.md`를 따른다.
+`ledger/`, `tasks/`, `submissions/`, `reports/`는 역사 증거입니다.
+현재 문서나 코드와 맞지 않는 과거 기록이 있어도 삭제·수정하지 않고,
+새 이벤트와 새 검증 결과로 교정합니다.

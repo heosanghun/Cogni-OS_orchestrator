@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $sourceRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$tempRoot = Join-Path $env:SystemDrive (
+$tempRoot = Join-Path ([IO.Path]::GetTempPath()) (
     "pair-wb-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
 )
 $controlRoot = Join-Path $tempRoot "control"

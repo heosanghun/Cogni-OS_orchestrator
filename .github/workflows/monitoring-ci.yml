@@ -1,0 +1,46 @@
+name: Monitoring trust gates
+
+on:
+  push:
+    paths:
+      - "functions/**"
+      - "public/**"
+      - "scripts/publish_monitor_snapshot.py"
+      - "src/cogni_os/**"
+      - "tests/web/**"
+      - "migrations/**"
+      - "package.json"
+      - ".github/workflows/monitoring-ci.yml"
+  pull_request:
+    paths:
+      - "functions/**"
+      - "public/**"
+      - "scripts/publish_monitor_snapshot.py"
+      - "src/cogni_os/**"
+      - "tests/web/**"
+      - "migrations/**"
+      - "package.json"
+
+permissions:
+  contents: read
+
+jobs:
+  monitoring-trust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Python tests
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s src/cogni_os/tests -v
+      - name: JavaScript syntax
+        run: npm run check
+      - name: Signed ingest and fail-closed UI tests
+        run: npm test

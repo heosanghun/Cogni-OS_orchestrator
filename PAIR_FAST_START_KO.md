@@ -3,9 +3,9 @@
 이 경로는 두 에이전트가 사용자의 복사·붙여넣기 없이 로컬 파일로
 대화하는 **읽기 전용 `PAIR_WORKBENCH`**입니다.
 
-> 한 명의 자문은 기존 4-agent council의 2/3 정족수가 아닙니다.
-> `PAIR_CANDIDATE`는 계획 후보일 뿐이며 제품 코드 수정, Git push,
-> 배포 또는 `EXECUTION_AUTHORIZED`를 허가하지 않습니다.
+> Antigravity의 추가 역할 라벨은 같은 모델 계열이므로 독립 검증자가
+> 아닙니다. `PAIR_CANDIDATE`는 계획 후보일 뿐이며 제품 코드 수정,
+> Git push, 배포 또는 task plane의 `verified`를 허가하지 않습니다.
 
 ## 실제 연결 구조
 
@@ -40,7 +40,8 @@ Codex/brief
   attempt를 재호출하지 않고 새 증거와 함께 `PAIR_SAFE_STOP`으로 닫습니다.
 - 파일 전송은 대체로 즉시지만 전체 왕복 시간은 모델 추론 시간이
   지배하므로 1초 완료를 보장하지 않습니다.
-- `room.ps1`만 실행해서는 모델이나 GUI가 깨어나지 않습니다.
+- pair task 생성만으로 모델이나 GUI가 깨어나지 않습니다. pin과 권한
+  검증을 통과한 `pair-sidecar.ps1`이 실제 adapter를 호출합니다.
 
 ## 태스크 만들기
 
@@ -121,11 +122,11 @@ Antigravity/Codex/Git/runner가 업데이트되면 SHA mismatch로 fail-closed
   실제 쓰기 차단의 1차 경계는 Antigravity 프로젝트 write deny와 Codex
   read-only sandbox입니다.
 - `PAIR_CANDIDATE`는 두 모델의 읽기 전용 계획 후보입니다. 제품 수정,
-  학습 시작, Git commit/push 또는 4-agent `EXECUTION_AUTHORIZED`를
-  의미하지 않습니다.
+  학습 시작, Git commit/push 또는 task plane의 `verified`를 의미하지
+  않습니다.
 
-## 기존 수동 helper와의 차이
+## 공식 실행 파일
 
-`antigravity_sidecar_loop.py`는 공식 Sidecar가 아니고 실제 loop나
-`agentapi` 호출도 하지 않으므로 이 경로에서 사용하지 않습니다.
-사용자/다른 에이전트가 만든 파일이므로 삭제하거나 덮어쓰지는 않습니다.
+공식 pair 경로는 `orchestrator\pair.ps1`,
+`orchestrator\pair-process-runner.ps1`,
+`orchestrator\pair-sidecar.ps1` 세 파일뿐입니다.

@@ -1,57 +1,97 @@
-# Cogni-OS Multi-Agent Ensemble Rules & Governance Protocol
+# Cogni-OS Codex–Antigravity 거버넌스
 
-Cogni-OS는 **Codex (지휘자 / Conductor)**와 **Antigravity (멀티에이전트 수행자 & 독립 검증자)** 간의 증거 기반 불변 원장(Evidence-First Ledger) 협업 프로토콜입니다.
+## 1. 목적
 
----
+Cogni-OS는 모델의 자기 보고가 아니라 실행 가능한 테스트, 원본 로그,
+SHA-256 manifest, 서명된 원장과 재현 명령으로 완료를 판정합니다.
+현재 협업 토폴로지는 Codex 지휘자와 Antigravity 수행자/자문자로
+한정합니다.
 
-## 1. Roles & Separation of Duties
+## 2. 역할
 
-### 👑 Codex (Orchestrator / Conductor)
-- **Role**: 전체 시스템의 지휘자(Conductor) 및 오케스트레이터.
-- **Responsibilities**:
-  1. 전체 작업 분할(Task Decomposition) 및 태스크 생성 (`cogni task add`).
-  2. 태스크 소유권 할당 및 스케줄링.
-  3. 에이전트 간 권한/게이트 설정 (GPU, 네트워크, 검증 게이트).
-  4. 증거 원장 총괄 및 최종 릴리스/커밋 승인 권한 독점.
-- **Rules**: 코드 직접 수정 대신 앙상블 시스템 전체를 지휘 및 검증 상태를 최종 컨트롤합니다.
+### Codex
 
-### ⚡ Antigravity-1 & Antigravity-2 (Primary & Sub-Executants)
-- **Role**: 멀티에이전트 코드 수행자 (Executants / Workers).
-- **Responsibilities**:
-  1. 원자적 락을 선점하여 태스크 Claim (`cogni task claim`, `cogni task start`).
-  2. 기능 구현, 단위 테스트 작성, 리팩토링 및 린트 검사 수행.
-  3. 6개 필수 섹션 보고서 (`.md`) 및 SHA-256 증거 매니페스트 (`.evidence.json`) 생성 후 제출 (`cogni task submit`).
-- **Rules**: 자신에게 할당된 허용 범위(`allowed_write_roots`) 내에서만 파일 작성을 수행합니다.
+- 목표와 완료 조건을 원자적 task로 분해
+- 최소 권한, write root, GPU 0~5, 네트워크 게이트 설정
+- 수행 증거와 분리된 known-answer 재현
+- `accept`/`reject`, release gate와 공개 주장에 대한 최종 책임
 
-### 🛡️ Antigravity-Verifier (Independent Reviewer & Advisor)
-- **Role**: 독립된 환경의 품질 및 안전성 검증자 (Verifier / Advisor).
-- **Responsibilities**:
-  1. 수행자(Worker)와 독립된 환경에서 known-answer test, lint, 보안 감사를 재수행.
-  2. 검증 결과를 불변 원장에 기록 (`cogni task verify --decision accept/reject`).
-- **Rules**: 수행자와 동일한 모델/컨텍스트가 아닌 독립적 검증을 거친 항목만 `VERIFIED`로 승인합니다.
+### Antigravity
 
----
+- lease를 가진 task만 실행
+- 허용된 write root 안에서 구현·회귀 검사
+- 보고서와 재현 가능한 evidence manifest 제출
+- pair workbench에서는 읽기 전용 R1/R2 자문 제공
 
-## 2. Task State Machine Transitions
+### 같은 모델 계열의 추가 역할
 
-```mermaid
-stateDiagram-v2
-    [*] --> Pending: Created by Codex Conductor
-    Pending --> Claimed: Atomic Claim by Antigravity Executant
-    Claimed --> Running: Task Started with Lease
-    Claimed --> Blocked: Blocked or Lease Expired
-    Running --> Blocked: Execution Error or Timeout
-    Running --> Submitted: Evidence Gates Passed & Report Written
-    Submitted --> Verified: Independent Antigravity Verifier Accept
-    Submitted --> Rejected: Verifier Reject (Requeued to Pending)
-    Blocked --> Pending: Codex Requeues Task
-    Verified --> Archived
+`antigravity-verifier`는 이름과 control principal이 달라도
+`google-antigravity` 수행자와 같은 canonical model family입니다.
+따라서 Antigravity가 제출한 결과의 독립 검증 요건을 충족하지 않습니다.
+Python `evaluate_independence`가 `same_model_family`로 거절하며, Codex가
+별도 검증 evidence를 생성해 책임 판정합니다.
+
+## 3. 신뢰 판정
+
+```text
+worker submission
+  → manifest 구조·hash·권한 검사
+  → trusted runner가 known-answer 재실행
+  → Codex가 별도 verifier manifest 생성
+  → identity independence 검사
+  → accept/reject 원장 기록
 ```
 
----
+독립성 검사는 다음 중 하나라도 겹치면 실패합니다.
 
-## 3. Human & Safety Boundaries
+- actor
+- control principal
+- canonical model family
+- alias lineage
+- worker와 동일한 evidence manifest
 
-1. **불변 증거 원장 (Immutable Evidence Ledger)**: 모든 작업 상태 변경은 SHA-256 및 HMAC 서명 기반의 `events.jsonl`에 기록됩니다.
-2. **자동 진행률 관제 (Live Monitoring)**: 사용자는 Cloudflare 배포 대시보드 (`public/index.html`)를 통해 실시간으로 작업 진행률, 에이전트 카드, 원장 증거 타임라인을 모니터링할 수 있습니다.
-3. **독립 검증 필수 (Independent Verification)**: 작업자가 제출(`SUBMITTED`)한 결과물은 독립 검증자의 재현성 확인이 완료되어야만 최종 `VERIFIED` 상태가 됩니다.
+## 4. 운영 평면
+
+### Python task plane
+
+공식 상태 변경 경로는 `cogni` CLI입니다.
+
+```powershell
+cogni task add <workspace> --actor codex ...
+cogni task claim <workspace> --actor antigravity ...
+cogni task start <workspace> --actor antigravity ...
+cogni task submit <workspace> --actor antigravity ...
+cogni task verify <workspace> --actor codex ...
+```
+
+### Pair workbench
+
+`orchestrator/pair.ps1`, `pair-process-runner.ps1`,
+`pair-sidecar.ps1`은 고정된 Git snapshot을 대상으로 읽기 전용 분석을
+수행합니다. 성공 종착점 `PAIR_CANDIDATE`는 계획 후보일 뿐 상태 변경이나
+릴리스 권한이 아닙니다.
+
+## 5. 불변 증거
+
+다음 디렉터리의 기존 파일은 역사 기록이므로 수정·삭제하지 않습니다.
+
+- `ledger/`
+- `tasks/`
+- `submissions/`
+- `reports/`
+
+과거 주장이 현재 코드와 다르면 역사를 고쳐 쓰지 않고 새 감사 이벤트와
+새 재현 증거로 교정합니다.
+
+## 6. 완료 기준
+
+task를 완료라고 부르려면 최소한 다음이 필요합니다.
+
+1. 명시된 범위의 변경
+2. 실행한 정확한 테스트 명령과 종료 코드
+3. 원본 출력 또는 hash가 포함된 증거
+4. dirty tree와 사용자 변경 보존 확인
+5. 독립성 판정 통과
+6. GPU·네트워크·secret·배포 경계 위반 없음
+
+미실행 검사는 `PASS`로 추정하지 않습니다.

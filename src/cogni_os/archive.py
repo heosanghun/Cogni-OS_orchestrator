@@ -155,6 +155,9 @@ def archive_evidence_bundle(
     bundle_path = destination / "bundle.json"
     atomic_write_json(bundle_path, bundle)
     return {
+        "task_id": task_id,
+        "attempt": attempt,
+        "label": label,
         "bundle_id": bundle_id,
         "path": str(destination),
         "manifest_path": str(bundle_path),

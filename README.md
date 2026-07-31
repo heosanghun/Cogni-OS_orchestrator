@@ -1,100 +1,153 @@
-# Cogni-OS Orchestrator 🚀
+# Cogni-OS Orchestrator
 
-**Cogni-OS**는 **Codex (지휘자 / Conductor)**와 **Antigravity (멀티에이전트 수행자 & 독립 검증자)** 간의 증거 기반 불변 원장(Evidence-First Ledger)을 바탕으로 동장하는 차세대 멀티에이전트 오케스트레이션 운영체제(OS)입니다.
+Cogni-OS Orchestrator는 **Codex 지휘자 + Antigravity 수행자**를 위한
+evidence-first 작업 제어면입니다. 핵심 산출물은 에이전트의 설명이 아니라
+재현 가능한 명령, 테스트 결과, SHA-256 증거 묶음과 HMAC 서명
+append-only 원장입니다.
 
----
+## 현재 운영 구조
 
-## 🌟 Key Features
+```text
+Codex conductor
+  ├─ 목표 분해·task 생성·권한 경계
+  ├─ Antigravity 구현 결과 수신
+  ├─ 별도 재현 증거 생성
+  └─ 책임 accept/reject 및 release gate
 
-- **Codex Conductor & Antigravity Fleet Topology**:
-  - Claude를 완전히 배제하고, **Codex**가 오케스트레이터로서 작업을 분할 및 관리하며 **Antigravity**가 수행자(Executant) 및 독립 검증자(Verifier)로 동작합니다.
-- **Evidence-First Verification State Machine**:
-  - `Pending` ➔ `Claimed` ➔ `Running` ➔ `Submitted` ➔ `Verified` ➔ `Archived`
-  - 에이전트의 종료 코드나 텍스트 보고서에 의존하지 않고, SHA-256 증거 매니페스트 및 알려진 값(Known-answer) 검증을 거친 항목만 최종 승인합니다.
-- **Append-only HMAC Signed Evidence Ledger**:
-  - 모든 상태 변경 및 트랜잭션은 `events.jsonl`에 암호화 해시 체인 및 HMAC 서명으로 기록되어 조작이 불가능합니다.
-- **Real-Time Live Web Dashboard & Cloudflare Pages Integration**:
-  - 사용자 작업 진행률 (Progress %), 에이전트 토폴로지 Card, 태스크 파이프라인, 원장 타임라인을 한눈에 볼 수 있는 웹 대시보드가 탑재되어 있습니다.
-  - `wrangler.toml` 및 `public/`, `functions/api/snapshot.js` 지원으로 Cloudflare Pages / Workers에 바로 배포 가능합니다.
+Antigravity worker/advisor
+  ├─ 허용된 범위의 구현·테스트
+  ├─ 보고서 + evidence manifest 제출
+  └─ pair workbench 읽기 전용 자문
 
----
-
-## 🚀 Quick Start
-
-### 1. Installation
-
-Python 3.10 이상 환경에서 패키지를 설치합니다:
-
-```bash
-pip install -e .
+Evidence plane
+  ├─ ledger/events.jsonl
+  ├─ tasks/
+  ├─ submissions/
+  ├─ reports/
+  └─ 검증된 monitoring snapshot
 ```
 
-### 2. Workspace Initialization
+`antigravity-verifier`는 별도 이름을 사용하더라도 수행자와 같은
+`google-antigravity` 모델 계열입니다. 따라서 Antigravity가 만든 결과에
+대한 독립 검증자가 아니며, Python 신뢰 게이트도 이를 같은 모델 계열로
+판정해 거절합니다. 최종 검증 책임자는 별도 증거를 재생성한 Codex입니다.
 
-Cogni-OS 워크스페이스를 초기화합니다:
+## 신뢰 상태 기계
 
-```bash
-cogni init ./cogni-workspace \
-  --name "Cogni-OS Production Workspace" \
-  --orchestrator codex \
-  --control-principal codex-conductor \
-  --model-family openai-codex \
+```text
+pending → claimed → running → submitted → verified → archived
+                                   └────→ rejected
+```
+
+- task lease와 허용 write root로 수행 범위를 고정합니다.
+- 제출 증거와 검증 증거는 서로 다른 manifest여야 합니다.
+- known-answer 명령은 신뢰 runner가 다시 실행합니다.
+- actor 라벨이 아니라 control principal, canonical model family,
+  alias lineage로 독립성을 판정합니다.
+- 원장·projection 불일치 또는 증거 누락은 fail-closed입니다.
+
+## 설치
+
+Python 3.10 이상에서:
+
+```powershell
+python -m pip install -e .
+```
+
+## 워크스페이스 초기화
+
+```powershell
+cogni init .\cogni-workspace `
+  --name "Cogni-OS Production Workspace" `
+  --orchestrator codex `
+  --control-principal codex-conductor `
+  --model-family openai-codex `
   --preset cogni-codex-antigravity
+
+cogni doctor .\cogni-workspace
 ```
 
-### 3. Creating & Executing Tasks
+## task 실행
 
-Codex Conductor가 태스크를 추가하고, Antigravity 수행자가 작업을 수행합니다:
+Codex가 task를 생성합니다.
 
-```bash
-# 1. Codex Conductor adds a task
-cogni task add ./cogni-workspace \
-  --actor codex \
-  --id T-101 \
-  --owner antigravity \
-  --title "Implement Core Data Validation Engine" \
-  --description "Build robust validation pipeline"
-
-# 2. Antigravity claims and starts the task
-cogni task claim ./cogni-workspace --actor antigravity --id T-101
-cogni task start ./cogni-workspace --actor antigravity --id T-101 --lease-token "<TOKEN>"
-
-# 3. Antigravity submits report & evidence manifest
-cogni task submit ./cogni-workspace \
-  --actor antigravity \
-  --id T-101 \
-  --lease-token "<TOKEN>" \
-  --report ./cogni-workspace/reports/antigravity/T-101.md \
-  --evidence ./cogni-workspace/reports/antigravity/T-101.evidence.json
-
-# 4. Antigravity Verifier independently verifies
-cogni task verify ./cogni-workspace \
-  --actor antigravity-verifier \
-  --id T-101 \
-  --decision accept \
-  --note "Independent known-answer tests reproduced clean."
+```powershell
+cogni task add .\cogni-workspace `
+  --actor codex `
+  --id T-101 `
+  --owner antigravity `
+  --title "Core validation 구현" `
+  --description "완료 조건과 재현 명령을 포함한 단일 목표" `
+  --allow-write src `
+  --allow-write tests
 ```
 
-### 4. Running Operational Dashboard
+Antigravity가 lease를 받아 실행하고 서로 다른 보고서·manifest를
+제출합니다.
 
-```bash
-cogni dashboard ./cogni-workspace --port 8484
+```powershell
+cogni task claim .\cogni-workspace --actor antigravity --id T-101
+cogni task start .\cogni-workspace `
+  --actor antigravity --id T-101 --lease-token "<CLAIM_TOKEN>"
+cogni task submit .\cogni-workspace `
+  --actor antigravity --id T-101 --lease-token "<CLAIM_TOKEN>" `
+  --report .\cogni-workspace\reports\antigravity\T-101.md `
+  --evidence .\cogni-workspace\reports\antigravity\T-101.evidence.json
 ```
 
-웹 브라우저에서 `http://127.0.0.1:8484`에 접속하여 실시간 모니터링을 확인하세요.
+Codex는 별도 환경에서 재현한 검증 manifest로 최종 판정합니다.
 
----
-
-## ☁️ Deploying to Cloudflare Pages
-
-프로젝트 루트 디렉토리에서 Cloudflare Pages로 배포할 수 있습니다:
-
-```bash
-npx wrangler pages deploy public --project-name cogni-os-orchestrator
+```powershell
+cogni task verify .\cogni-workspace `
+  --actor codex `
+  --id T-101 `
+  --decision accept `
+  --note "Known-answer와 회귀 검사를 별도 재현함" `
+  --evidence .\cogni-workspace\reports\codex\T-101.verifier.evidence.json
 ```
 
----
+## 읽기 전용 pair workbench
 
-## 📜 License
+`orchestrator/pair*.ps1`은 Codex와 Antigravity가 같은 Git snapshot을
+읽고 계획을 교차 검토하는 보조 경로입니다.
 
-Distributed under the MIT License. See `LICENSE` for details.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\orchestrator\pair.ps1 probe `
+  -WorkspaceRoot $PWD
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\orchestrator\pair.ps1 new-task `
+  -WorkspaceRoot $PWD `
+  -Title "검증 가능한 단일 목표" `
+  -Goal "완료 조건·중단 조건·재현 명령" `
+  -TargetWorkspace "C:\Project\Target"
+```
+
+`PAIR_CANDIDATE`는 읽기 전용 계획 후보입니다. 제품 변경이나
+릴리스 승인을 의미하지 않습니다. 자세한 절차는
+`PAIR_FAST_START_KO.md`를 참고합니다.
+
+## 검증
+
+```powershell
+$env:PYTHONPATH = "$PWD\src"
+python -m unittest discover -s src\cogni_os\tests -v
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\tests\pair_workbench_test.ps1
+
+npm run check
+npm test
+```
+
+## 관제
+
+로컬:
+
+```powershell
+cogni dashboard .\cogni-workspace --port 8484
+```
+
+Cloudflare 실시간 관제의 D1, HMAC V2 keyring, 키 회전 및 fail-closed
+배포 절차는 `docs/LIVE_MONITORING_DEPLOYMENT_KO.md`에 있습니다.
