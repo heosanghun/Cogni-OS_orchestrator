@@ -213,8 +213,15 @@ def audit_verification_events(
     agents: dict[str, dict[str, Any]],
     *,
     policy: dict[str, Any] | None = None,
+    orchestrator: str | None = None,
 ) -> dict[str, Any]:
-    """Audit historical verification events without modifying the ledger."""
+    """Audit verification identity and append-only trust restatements.
+
+    A later ``verification.restatement`` can acknowledge that a historical
+    ``task.verified`` claim is disputed or revoked.  It does not erase the
+    original event.  A restatement is valid only when it binds the exact signed
+    sequence and event hash and, when supplied, is authored by the orchestrator.
+    """
     identities = resolve_identity_registry(agents, policy=policy)
     policy_agents = _policy_agents(policy)
     policy_filled = {
@@ -233,6 +240,8 @@ def audit_verification_events(
     audited_verifications: list[dict[str, Any]] = []
     audited_submissions: list[dict[str, Any]] = []
     task_submissions: dict[str, dict[str, Any]] = {}
+    verifications_by_sequence: dict[int, dict[str, Any]] = {}
+    restatement_events: list[dict[str, Any]] = []
 
     for event in events:
         action = event.get("action")
@@ -258,8 +267,9 @@ def audit_verification_events(
             worker_identity = submission.get("worker_identity") if submission else None
             worker_actor = submission.get("actor") if submission else None
             eval_result = evaluate_independence(worker_identity, verifier_identity)
-            audited_verifications.append({
+            record = {
                 "sequence": event.get("sequence"),
+                "event_hash": event.get("event_hash"),
                 "task_id": task_id,
                 "worker_actor": worker_actor,
                 "verifier_actor": actor,
@@ -269,11 +279,113 @@ def audit_verification_events(
                 "verifier_identity_source": current_source(actor),
                 "recorded_independence": event.get("payload", {}).get("independence"),
                 "audited_independence": eval_result,
-            })
+            }
+            audited_verifications.append(record)
+            if isinstance(event.get("sequence"), int):
+                verifications_by_sequence[event["sequence"]] = record
+        elif action == "verification.restatement":
+            restatement_events.append(event)
+
+    restatements: list[dict[str, Any]] = []
+    invalid_restatements: list[dict[str, Any]] = []
+    latest_restatement: dict[int, dict[str, Any]] = {}
+    for event in restatement_events:
+        payload = event.get("payload")
+        reasons: list[str] = []
+        if not isinstance(payload, dict):
+            payload = {}
+            reasons.append("payload_not_object")
+        target_sequence = payload.get("target_verification_sequence")
+        target = (
+            verifications_by_sequence.get(target_sequence)
+            if isinstance(target_sequence, int)
+            and not isinstance(target_sequence, bool)
+            else None
+        )
+        if target is None:
+            reasons.append("target_verification_missing")
+        else:
+            if event.get("task_id") != target.get("task_id"):
+                reasons.append("task_id_mismatch")
+            if payload.get("target_verification_hash") != target.get("event_hash"):
+                reasons.append("target_hash_mismatch")
+            if (
+                not isinstance(event.get("sequence"), int)
+                or isinstance(event.get("sequence"), bool)
+                or event["sequence"] <= target_sequence
+            ):
+                reasons.append("restatement_not_after_target")
+            if payload.get("original_verifier") != target.get("verifier_actor"):
+                reasons.append("original_verifier_mismatch")
+        if payload.get("schema_version") != 1:
+            reasons.append("unsupported_schema_version")
+        effective_status = payload.get("effective_status")
+        if effective_status not in {
+            "verification_disputed",
+            "verification_revoked",
+        }:
+            reasons.append("invalid_effective_status")
+        if not isinstance(payload.get("reason"), str) or not payload["reason"].strip():
+            reasons.append("missing_reason")
+        if orchestrator is not None and event.get("actor") != orchestrator:
+            reasons.append("actor_is_not_orchestrator")
+
+        record = {
+            "sequence": event.get("sequence"),
+            "task_id": event.get("task_id"),
+            "actor": event.get("actor"),
+            "target_verification_sequence": target_sequence,
+            "target_verification_hash": payload.get("target_verification_hash"),
+            "effective_status": effective_status,
+            "reason": payload.get("reason"),
+            "valid": not reasons,
+            "reasons": reasons,
+        }
+        restatements.append(record)
+        if reasons:
+            invalid_restatements.append(record)
+            continue
+
+        previous = latest_restatement.get(target_sequence)
+        if (
+            previous is not None
+            and previous.get("effective_status") == "verification_revoked"
+            and effective_status != "verification_revoked"
+        ):
+            record["valid"] = False
+            record["reasons"] = ["revocation_cannot_be_weakened"]
+            invalid_restatements.append(record)
+            continue
+        latest_restatement[target_sequence] = record
+
+    unresolved_untrusted: list[dict[str, Any]] = []
+    for verification in audited_verifications:
+        sequence = verification.get("sequence")
+        restatement = latest_restatement.get(sequence)
+        audited_independence = verification["audited_independence"]
+        if restatement is not None:
+            verification["restatement"] = deepcopy(restatement)
+            verification["effective_status"] = restatement["effective_status"]
+        elif audited_independence.get("independent") is True:
+            verification["restatement"] = None
+            verification["effective_status"] = "verified"
+        else:
+            verification["restatement"] = None
+            verification["effective_status"] = "verification_disputed"
+            unresolved_untrusted.append(
+                {
+                    "sequence": sequence,
+                    "task_id": verification.get("task_id"),
+                    "reasons": list(audited_independence.get("reasons", [])),
+                }
+            )
 
     return {
-        "valid": True,
+        "valid": not invalid_restatements and not unresolved_untrusted,
         "audited_submissions": len(audited_submissions),
         "audited_verifications": len(audited_verifications),
         "verifications": audited_verifications,
+        "restatements": restatements,
+        "invalid_restatements": invalid_restatements,
+        "unresolved_untrusted_verifications": unresolved_untrusted,
     }
