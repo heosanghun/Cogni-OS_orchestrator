@@ -180,6 +180,19 @@ def _cmd_task_verify(args: argparse.Namespace) -> None:
     )
 
 
+def _cmd_task_restate_verification(args: argparse.Namespace) -> None:
+    workspace = _workspace(args.path)
+    _emit(
+        workspace.restate_verification(
+            actor=args.actor,
+            task_id=args.id,
+            effective_status=args.status,
+            reason=args.reason,
+            target_sequence=args.target_sequence,
+        )
+    )
+
+
 def _cmd_task_list(args: argparse.Namespace) -> None:
     _emit(_workspace(args.path).list_tasks())
 
@@ -384,6 +397,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="Per-command trusted verifier timeout (1-300 seconds)",
     )
     p_task_verify.set_defaults(func=_cmd_task_verify)
+
+    p_task_restate = task_subs.add_parser(
+        "restate-verification",
+        help="Append a trust correction without rewriting verification history",
+    )
+    p_task_restate.add_argument("path", help="Path to workspace root")
+    p_task_restate.add_argument(
+        "--actor",
+        required=True,
+        help="Accountable orchestrator recording the correction",
+    )
+    p_task_restate.add_argument("--id", required=True, help="Task ID")
+    p_task_restate.add_argument(
+        "--status",
+        required=True,
+        choices=["verification_disputed", "verification_revoked"],
+        help="Effective trust status after the correction",
+    )
+    p_task_restate.add_argument(
+        "--reason",
+        required=True,
+        help="Evidence-based correction rationale",
+    )
+    p_task_restate.add_argument(
+        "--target-sequence",
+        type=int,
+        help="Exact task.verified ledger sequence; defaults to the latest",
+    )
+    p_task_restate.set_defaults(func=_cmd_task_restate_verification)
 
     p_task_list = task_subs.add_parser("list", help="List all tasks")
     p_task_list.add_argument("path", help="Path to workspace root")

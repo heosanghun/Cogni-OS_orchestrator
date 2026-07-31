@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -15,23 +16,106 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.publish_monitor_snapshot import (  # noqa: E402
+    PublisherAlreadyRunning,
+    PublisherInstanceLock,
+    append_runtime_journal,
     build_snapshot,
     collector_host_id,
     collect_gpus,
+    compute_backoff_seconds,
     export_agents,
     export_tasks,
     hmac_signature,
+    main,
     next_sequence,
     peek_next_sequence,
+    process_is_alive,
     release_gate,
+    sanitize_error,
     signature_message,
     task_trust_state,
     validate_publish_endpoint,
+    wait_for_supervisor,
 )
 from cogni_os.workspace import Workspace  # noqa: E402
 
 
 class MonitorPublisherTests(unittest.TestCase):
+    def test_supervisor_watch_stops_orphaned_publisher(self) -> None:
+        self.assertTrue(process_is_alive(os.getpid()))
+        with (
+            patch(
+                "scripts.publish_monitor_snapshot.process_is_alive",
+                side_effect=[True, False],
+            ),
+            patch("scripts.publish_monitor_snapshot.time.sleep") as sleep,
+        ):
+            self.assertFalse(
+                wait_for_supervisor(10, 12345, check_interval=1),
+            )
+        sleep.assert_called_once_with(1)
+
+    def test_process_lock_is_single_instance_and_recovers_after_release(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            lock_path = Path(temporary) / "publisher.instance.lock"
+            first = PublisherInstanceLock(lock_path)
+            second = PublisherInstanceLock(lock_path)
+            first.acquire()
+            with self.assertRaises(PublisherAlreadyRunning):
+                second.acquire()
+            first.release()
+            second.acquire()
+            second.release()
+
+    def test_supervised_duplicate_returns_temporary_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = Workspace.initialize(
+                root / "workspace",
+                name="Duplicate Process Test",
+                orchestrator="codex",
+                orchestrator_control_principal="codex-conductor",
+                orchestrator_model_family="openai-codex",
+                preset="cogni-codex-antigravity",
+            )
+            state_dir = root / "state"
+            lock = PublisherInstanceLock(
+                state_dir / "locks" / "monitor-publisher.instance.lock"
+            )
+            with lock:
+                exit_code = main(
+                    [
+                        str(workspace.root),
+                        "--dry-run",
+                        "--state-dir",
+                        str(state_dir),
+                    ]
+                )
+            self.assertEqual(exit_code, 75)
+
+    def test_exponential_backoff_is_bounded(self) -> None:
+        self.assertEqual(compute_backoff_seconds(15, 1, 300), 15)
+        self.assertEqual(compute_backoff_seconds(15, 2, 300), 30)
+        self.assertEqual(compute_backoff_seconds(15, 5, 120), 120)
+        self.assertEqual(compute_backoff_seconds(15, 100, 120), 120)
+
+    def test_runtime_journal_is_jsonl_and_error_is_redacted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state_dir = Path(temporary)
+            secret = "a-secret-that-must-not-enter-the-journal"
+            error = RuntimeError(f"failed with {secret}\non retry")
+            append_runtime_journal(
+                state_dir,
+                "publish_failed",
+                error=sanitize_error(error, secret=secret),
+            )
+            journal = state_dir / "monitor_publisher_journal.jsonl"
+            content = journal.read_text(encoding="utf-8")
+            record = json.loads(content)
+            self.assertEqual(record["event"], "publish_failed")
+            self.assertNotIn(secret, content)
+            self.assertIn("[REDACTED]", content)
+
     def test_publisher_state_can_live_outside_read_only_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

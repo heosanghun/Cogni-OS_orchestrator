@@ -9,6 +9,7 @@ only the allowlisted operational schema consumed by Cloudflare Pages.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import hmac
 import json
@@ -24,7 +25,7 @@ import time
 import urllib.error
 import urllib.request
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -34,10 +35,154 @@ from cogni_os.roadmap import roadmap_snapshot
 from cogni_os.trust_projection import task_trust_state
 from cogni_os.workspace import Workspace
 
-COLLECTOR_VERSION = "1.0.0"
+COLLECTOR_VERSION = "1.1.0"
 INGEST_PROTOCOL = "COGNI-SNAPSHOT-V2"
 DEFAULT_ENDPOINT = "https://cogni-os-orchestrator.pages.dev/api/ingest"
 DEFAULT_ENDPOINT_HOST = "cogni-os-orchestrator.pages.dev"
+DEFAULT_JOURNAL_MAX_BYTES = 8 * 1024 * 1024
+
+
+class PublisherAlreadyRunning(RuntimeError):
+    """Raised when another publisher owns the OS-level instance lock."""
+
+
+class PublisherInstanceLock:
+    """Hold a crash-safe, OS-released lock for the publisher lifetime.
+
+    Unlike an age-based lock file, this lock cannot be stolen merely because a
+    healthy publisher has been running for a long time. Windows and POSIX both
+    release the underlying file lock when the process exits or the PC reboots.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._handle: Any | None = None
+
+    def acquire(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        handle = self.path.open("a+b", buffering=0)
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"0")
+        handle.seek(0)
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (OSError, BlockingIOError) as error:
+            handle.close()
+            raise PublisherAlreadyRunning(
+                f"monitor publisher already owns {self.path}"
+            ) from error
+
+        self._handle = handle
+        metadata = canonical_json(
+            {
+                "pid": os.getpid(),
+                "acquired_at": utc_now(),
+            }
+        )
+        handle.seek(1)
+        handle.write(metadata)
+        handle.truncate()
+        handle.flush()
+        os.fsync(handle.fileno())
+
+    def release(self) -> None:
+        handle = self._handle
+        if handle is None:
+            return
+        try:
+            handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
+            self._handle = None
+
+    def __enter__(self) -> PublisherInstanceLock:
+        self.acquire()
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        self.release()
+
+
+def process_is_alive(pid: int) -> bool:
+    """Return whether a local supervisor process is still running."""
+
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        process_query_limited_information = 0x1000
+        still_active = 259
+        kernel32 = ctypes.windll.kernel32
+        open_process = kernel32.OpenProcess
+        open_process.argtypes = (
+            wintypes.DWORD,
+            wintypes.BOOL,
+            wintypes.DWORD,
+        )
+        open_process.restype = wintypes.HANDLE
+        get_exit_code = kernel32.GetExitCodeProcess
+        get_exit_code.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+        get_exit_code.restype = wintypes.BOOL
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = (wintypes.HANDLE,)
+        close_handle.restype = wintypes.BOOL
+        handle = open_process(
+            process_query_limited_information,
+            False,
+            pid,
+        )
+        if not handle:
+            return False
+        exit_code = wintypes.DWORD()
+        try:
+            if not get_exit_code(handle, ctypes.byref(exit_code)):
+                return False
+            return exit_code.value == still_active
+        finally:
+            close_handle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def wait_for_supervisor(
+    delay_seconds: float,
+    supervisor_pid: int,
+    *,
+    check_interval: float = 1.0,
+) -> bool:
+    """Sleep in bounded slices and stop when the task supervisor disappears."""
+
+    deadline = time.monotonic() + max(0.0, delay_seconds)
+    while True:
+        if not process_is_alive(supervisor_pid):
+            return False
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return True
+        time.sleep(min(max(0.05, check_interval), remaining))
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -49,6 +194,12 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
+def utc_after(seconds: float) -> str:
+    return (
+        datetime.now(UTC) + timedelta(seconds=max(0.0, seconds))
+    ).isoformat().replace("+00:00", "Z")
+
+
 def canonical_json(value: Any) -> bytes:
     return json.dumps(
         value,
@@ -56,6 +207,100 @@ def canonical_json(value: Any) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
+
+
+def compute_backoff_seconds(
+    interval_seconds: float,
+    consecutive_failures: int,
+    max_backoff_seconds: float,
+) -> float:
+    """Return bounded deterministic exponential retry delay."""
+
+    base = max(5.0, float(interval_seconds))
+    failures = max(1, int(consecutive_failures))
+    cap = max(base, float(max_backoff_seconds))
+    exponent = min(failures - 1, 16)
+    return min(cap, base * (2**exponent))
+
+
+def sanitize_error(error: BaseException, *, secret: str = "") -> str:
+    """Create a bounded, single-line error string without secret material."""
+
+    message = str(error).replace("\r", " ").replace("\n", " ")
+    if secret:
+        message = message.replace(secret, "[REDACTED]")
+    return " ".join(message.split())[:512]
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f".tmp-{os.getpid()}")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
+
+
+def write_runtime_state(
+    state_dir: Path,
+    *,
+    status: str,
+    consecutive_failures: int,
+    last_success_at: str | None,
+    next_retry_at: str | None,
+    last_error: str | None = None,
+) -> None:
+    """Atomically expose secret-free local publisher health."""
+
+    _atomic_write_json(
+        state_dir / "monitor_publisher_runtime.json",
+        {
+            "schema_version": 1,
+            "status": status,
+            "pid": os.getpid(),
+            "updated_at": utc_now(),
+            "consecutive_failures": consecutive_failures,
+            "last_success_at": last_success_at,
+            "next_retry_at": next_retry_at,
+            "last_error": last_error,
+            "gpu_telemetry_default": "DISABLED",
+            "gpu_allowed_ids": [0, 1, 2, 3, 4, 5],
+            "gpu_denied_ids": [6, 7],
+        },
+    )
+
+
+def append_runtime_journal(
+    state_dir: Path,
+    event: str,
+    *,
+    max_bytes: int = DEFAULT_JOURNAL_MAX_BYTES,
+    **fields: Any,
+) -> None:
+    """Append a bounded local operations journal with segment rollover."""
+
+    state_dir.mkdir(parents=True, exist_ok=True)
+    journal = state_dir / "monitor_publisher_journal.jsonl"
+    if journal.exists() and journal.stat().st_size >= max(1024, max_bytes):
+        archived = state_dir / "monitor_publisher_journal.previous.jsonl"
+        with contextlib.suppress(FileNotFoundError):
+            archived.unlink()
+        os.replace(journal, archived)
+    payload = {
+        "schema_version": 1,
+        "observed_at": utc_now(),
+        "event": event,
+        "pid": os.getpid(),
+        **fields,
+    }
+    encoded = canonical_json(payload) + b"\n"
+    fd = os.open(journal, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        os.write(fd, encoded)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def signature_message(
@@ -812,10 +1057,19 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--interval-seconds", type=float, default=0.0)
     parser.add_argument("--timeout-seconds", type=float, default=15.0)
+    parser.add_argument(
+        "--max-backoff-seconds",
+        type=float,
+        default=300.0,
+        help="Maximum retry delay after consecutive publish failures.",
+    )
     return parser.parse_args(argv)
 
 
-def run_once(args: argparse.Namespace, workspace: Workspace) -> None:
+def run_once(
+    args: argparse.Namespace,
+    workspace: Workspace,
+) -> dict[str, Any]:
     if args.dry_run:
         snapshot = build_snapshot(
             workspace,
@@ -826,7 +1080,15 @@ def run_once(args: argparse.Namespace, workspace: Workspace) -> None:
             include_gpu=args.include_gpu,
         )
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))
-        return
+        return {
+            "accepted": {
+                "sequence": snapshot["sequence"],
+                "body_sha256": hashlib.sha256(
+                    canonical_json(snapshot)
+                ).hexdigest(),
+            },
+            "dry_run": True,
+        }
     lock_root = args.state_dir or workspace.control_dir
     with FileLock(lock_root / "locks" / "monitor-publisher.lock"):
         sequence = next_sequence(
@@ -870,21 +1132,183 @@ def run_once(args: argparse.Namespace, workspace: Workspace) -> None:
         f"sequence={acknowledgement['sequence']} "
         f"sha256={acknowledgement['body_sha256']}"
     )
+    return accepted
+
+
+def _validate_runtime_args(args: argparse.Namespace) -> None:
+    numeric = (
+        ("--interval-seconds", args.interval_seconds, 0.0, 3600.0),
+        ("--timeout-seconds", args.timeout_seconds, 1.0, 60.0),
+        ("--max-backoff-seconds", args.max_backoff_seconds, 5.0, 3600.0),
+    )
+    for label, value, lower, upper in numeric:
+        if not math.isfinite(value) or value < lower or value > upper:
+            raise RuntimeError(
+                f"{label} must be between {lower:g} and {upper:g} seconds"
+            )
+    if (
+        args.interval_seconds > 0
+        and args.max_backoff_seconds < max(5.0, args.interval_seconds)
+    ):
+        raise RuntimeError(
+            "--max-backoff-seconds cannot be lower than the publish interval"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
+    _validate_runtime_args(args)
     workspace = Workspace(args.workspace.resolve())
-    while True:
-        try:
-            run_once(args, workspace)
-        except Exception as error:
-            print(f"monitor publisher error: {error}", file=sys.stderr)
+    state_dir = (args.state_dir or workspace.control_dir).resolve()
+    instance_lock = PublisherInstanceLock(
+        state_dir / "locks" / "monitor-publisher.instance.lock"
+    )
+    try:
+        instance_lock.acquire()
+    except PublisherAlreadyRunning as error:
+        append_runtime_journal(
+            state_dir,
+            "duplicate_instance_rejected",
+            error=sanitize_error(error),
+        )
+        print(f"monitor publisher not started: {error}", file=sys.stderr)
+        # EX_TEMPFAIL keeps a supervised process eligible for restart after
+        # the prior instance exits (for example, during a task replacement).
+        return 75
+
+    consecutive_failures = 0
+    last_success_at: str | None = None
+    last_error_message: str | None = None
+    secret = os.environ.get(args.secret_env, "")
+    supervisor_pid = os.getppid() if args.interval_seconds > 0 else 0
+    append_runtime_journal(
+        state_dir,
+        "publisher_started",
+        workspace_id=str(workspace.config["workspace_id"]),
+        interval_seconds=args.interval_seconds,
+        max_backoff_seconds=args.max_backoff_seconds,
+        gpu_telemetry="ENABLED" if args.include_gpu else "DISABLED",
+        supervisor_pid=supervisor_pid or None,
+    )
+    write_runtime_state(
+        state_dir,
+        status="STARTING",
+        consecutive_failures=0,
+        last_success_at=None,
+        next_retry_at=None,
+    )
+    exit_code = 0
+    try:
+        while True:
+            if supervisor_pid and not process_is_alive(supervisor_pid):
+                append_runtime_journal(
+                    state_dir,
+                    "supervisor_lost",
+                    supervisor_pid=supervisor_pid,
+                )
+                break
+            delay_seconds = max(5.0, args.interval_seconds)
+            try:
+                accepted = run_once(args, workspace)
+                acknowledgement = accepted["accepted"]
+                consecutive_failures = 0
+                last_error_message = None
+                if not args.dry_run:
+                    last_success_at = utc_now()
+                append_runtime_journal(
+                    state_dir,
+                    "snapshot_accepted" if not args.dry_run else "dry_run_complete",
+                    sequence=acknowledgement["sequence"],
+                    body_sha256=acknowledgement["body_sha256"],
+                )
+                next_retry_at = (
+                    utc_after(delay_seconds)
+                    if args.interval_seconds > 0
+                    else None
+                )
+                write_runtime_state(
+                    state_dir,
+                    status="HEALTHY" if not args.dry_run else "DRY_RUN",
+                    consecutive_failures=0,
+                    last_success_at=last_success_at,
+                    next_retry_at=next_retry_at,
+                )
+            except KeyboardInterrupt:
+                exit_code = 130
+                break
+            except Exception as error:
+                consecutive_failures += 1
+                error_message = sanitize_error(error, secret=secret)
+                last_error_message = error_message
+                print(
+                    f"monitor publisher error: {error_message}",
+                    file=sys.stderr,
+                )
+                append_runtime_journal(
+                    state_dir,
+                    "publish_failed",
+                    consecutive_failures=consecutive_failures,
+                    error_type=type(error).__name__,
+                    error=error_message,
+                )
+                if args.interval_seconds <= 0:
+                    write_runtime_state(
+                        state_dir,
+                        status="FAILED",
+                        consecutive_failures=consecutive_failures,
+                        last_success_at=last_success_at,
+                        next_retry_at=None,
+                        last_error=error_message,
+                    )
+                    exit_code = 1
+                    break
+                delay_seconds = compute_backoff_seconds(
+                    args.interval_seconds,
+                    consecutive_failures,
+                    args.max_backoff_seconds,
+                )
+                next_retry_at = utc_after(delay_seconds)
+                append_runtime_journal(
+                    state_dir,
+                    "retry_scheduled",
+                    consecutive_failures=consecutive_failures,
+                    delay_seconds=delay_seconds,
+                    next_retry_at=next_retry_at,
+                )
+                write_runtime_state(
+                    state_dir,
+                    status="BACKOFF",
+                    consecutive_failures=consecutive_failures,
+                    last_success_at=last_success_at,
+                    next_retry_at=next_retry_at,
+                    last_error=error_message,
+                )
             if args.interval_seconds <= 0:
-                return 1
-        if args.interval_seconds <= 0:
-            return 0
-        time.sleep(max(5.0, args.interval_seconds))
+                break
+            if not wait_for_supervisor(delay_seconds, supervisor_pid):
+                append_runtime_journal(
+                    state_dir,
+                    "supervisor_lost",
+                    supervisor_pid=supervisor_pid,
+                )
+                break
+    finally:
+        append_runtime_journal(
+            state_dir,
+            "publisher_stopped",
+            exit_code=exit_code,
+            consecutive_failures=consecutive_failures,
+        )
+        write_runtime_state(
+            state_dir,
+            status="STOPPED" if exit_code == 0 else "FAILED",
+            consecutive_failures=consecutive_failures,
+            last_success_at=last_success_at,
+            next_retry_at=None,
+            last_error=last_error_message,
+        )
+        instance_lock.release()
+    return exit_code
 
 
 if __name__ == "__main__":

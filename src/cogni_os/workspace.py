@@ -728,6 +728,113 @@ class Workspace:
             atomic_write_json(self._task_path(task_id), updated)
             return updated
 
+    def restate_verification(
+        self,
+        *,
+        actor: str,
+        task_id: str,
+        effective_status: str,
+        reason: str,
+        target_sequence: int | None = None,
+    ) -> dict[str, Any]:
+        """Append a signed correction without rewriting historical task evidence.
+
+        A restatement never mutates the task snapshot or the verification event it
+        references.  Consumers must treat the later signed event as the effective
+        trust status while retaining the original claim for audit and replay.
+        """
+
+        if actor != self.orchestrator:
+            raise AuthorizationError(
+                "Only the accountable orchestrator can restate verification trust"
+            )
+        if effective_status not in {
+            "verification_disputed",
+            "verification_revoked",
+        }:
+            raise ConfigurationError(
+                "Effective verification status must be verification_disputed or "
+                "verification_revoked"
+            )
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise EvidenceError("Verification restatement reason must be non-empty")
+        if target_sequence is not None and (
+            not isinstance(target_sequence, int)
+            or isinstance(target_sequence, bool)
+            or target_sequence < 1
+        ):
+            raise ConfigurationError(
+                "Target verification sequence must be a positive integer"
+            )
+
+        with self._task_lock(task_id):
+            self.get_task(task_id)
+            events = self.ledger.read()
+            candidates = [
+                event
+                for event in events
+                if event.get("action") == "task.verified"
+                and event.get("task_id") == task_id
+            ]
+            if target_sequence is None:
+                target = candidates[-1] if candidates else None
+            else:
+                target = next(
+                    (
+                        event
+                        for event in candidates
+                        if event.get("sequence") == target_sequence
+                    ),
+                    None,
+                )
+            if target is None:
+                raise EvidenceError(
+                    f"No task.verified event found for {task_id}"
+                    + (
+                        ""
+                        if target_sequence is None
+                        else f" at sequence {target_sequence}"
+                    )
+                )
+
+            target_hash = str(target.get("event_hash", ""))
+            for event in reversed(events):
+                if event.get("action") != "verification.restatement":
+                    continue
+                payload = event.get("payload", {})
+                if (
+                    payload.get("target_verification_sequence")
+                    != target.get("sequence")
+                    or payload.get("target_verification_hash") != target_hash
+                ):
+                    continue
+                previous_status = payload.get("effective_status")
+                if (
+                    previous_status == effective_status
+                    and payload.get("reason") == normalized_reason
+                ):
+                    return event
+                if previous_status == "verification_revoked":
+                    raise TransitionError(
+                        "A revoked verification cannot be restored or weakened"
+                    )
+                break
+
+            return self.ledger.append(
+                actor=actor,
+                action="verification.restatement",
+                task_id=task_id,
+                payload={
+                    "schema_version": 1,
+                    "target_verification_sequence": target["sequence"],
+                    "target_verification_hash": target_hash,
+                    "original_verifier": target.get("actor"),
+                    "effective_status": effective_status,
+                    "reason": normalized_reason,
+                },
+            )
+
     def status(self) -> dict[str, Any]:
         """Return operational status summary for Cogni-OS."""
         tasks = self.list_tasks()

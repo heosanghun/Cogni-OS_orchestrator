@@ -83,6 +83,10 @@ class RoadmapTests(unittest.TestCase):
                 tasks["P01-TRUTH"]["allowed_write_roots"]
             )
         )
+        self.assertIn(
+            "verification.restatement",
+            tasks["P01-TRUTH"]["description"],
+        )
         for task in tasks.values():
             if task["permissions"]["gpu"]:
                 self.assertIn(

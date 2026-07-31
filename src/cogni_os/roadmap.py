@@ -29,7 +29,8 @@ ROADMAP_PHASES: tuple[dict[str, Any], ...] = (
             "workspace, capability Fact-book, and deployment identity. Acceptance: "
             "workspace doctor passes; source, ledger, projection, and deployment "
             "commit are attributable; the historical same-family T-001 verification "
-            "is not counted as trusted; exact replay and rollback commands are retained."
+            "is bound to an append-only verification.restatement and is not counted "
+            "as trusted; exact replay and rollback commands are retained."
         ),
         "prerequisites": [],
         "allowed_write_roots": [

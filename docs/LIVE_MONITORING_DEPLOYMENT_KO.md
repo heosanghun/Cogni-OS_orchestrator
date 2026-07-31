@@ -173,6 +173,59 @@ GPU를 읽지 않는 제어 평면에서는 `--include-gpu` 또는 `-IncludeGpu`
 생략합니다. 이때 화면은 `GPU telemetry DISABLED`를 표시하며 수치를
 꾸며내지 않습니다.
 
+## 재부팅 자동복구와 단일 인스턴스
+
+운영 PC에서는 로그온 시 publisher를 자동 복구하는 현재 사용자 범위의
+예약 작업을 설치할 수 있습니다. 설치 명령은 HMAC secret을 예약 작업
+인자나 환경 변수에 복사하지 않습니다. 기존의 현재 사용자·현재 PC 전용
+DPAPI `SecureString` 파일 경로만 전달합니다.
+
+```powershell
+.\scripts\install_monitor_publisher_autostart.ps1 `
+  -WorkspaceRoot "C:\comunity" `
+  -IntervalSeconds 60 `
+  -MaxBackoffSeconds 300
+```
+
+기본값은 GPU 텔레메트리 `DISABLED`입니다. 명시적으로 `-IncludeGpu`를
+설치 옵션에 준 경우에도 collector는 GPU 0~5만 내보내고 6·7은 denylist
+위반으로 표시하며 상세 수치를 외부로 보내지 않습니다.
+
+자동복구 계약은 다음과 같습니다.
+
+- Task Scheduler의 `AtLogOn`, `StartWhenAvailable`, 1분 재시작 정책
+- Task Scheduler `IgnoreNew`와 Python OS file lock의 이중 단일 인스턴스
+- 프로세스 비정상 종료·재부팅 시 OS가 자동 해제하는 instance lock
+- 연속 실패 시 게시 주기부터 최대 300초까지 지수 backoff
+- `.runtime/monitor-publisher/monitor_publisher_journal.jsonl` 로컬 journal
+- `.runtime/monitor-publisher/monitor_publisher_runtime.json` 원자적 상태 파일
+- DPAPI 복호화 실패, 다른 사용자/PC 파일, reparse point, 비정상 크기를
+  모두 네트워크 요청 전에 fail-closed 처리
+
+publisher의 `PYTHONPATH`는 감시 대상 workspace의 `src`가 아니라 이
+orchestrator 저장소의 `src`로 고정됩니다. 따라서 `C:\comunity`가 운영
+증거 전용이거나 읽기 전용이어도 실행 코드의 출처가 바뀌지 않습니다.
+
+예약 작업 제거:
+
+```powershell
+.\scripts\uninstall_monitor_publisher_autostart.ps1
+```
+
+DPAPI 파일을 다른 Windows 사용자·PC로 복사했거나 복호화가 실패하면
+기존 파일을 억지로 재사용하지 않습니다. Cloudflare keyring을 새 값으로
+회전한 동일 세션에서 새 secret을 현재 사용자 DPAPI로 다시 보호합니다.
+평문은 명령 인자에 넣지 않습니다.
+
+```powershell
+$env:COGNI_MONITOR_INGEST_SECRET = "<Cloudflare에 등록한 새 secret>"
+.\scripts\set_monitor_publisher_secret.ps1 -FromEnvironment
+```
+
+스크립트는 저장 후 환경 변수를 제거하고 파일 ACL을 현재 사용자 SID로
+제한하며 즉시 복호화 검증합니다. keyring과 다른 임의 secret을 로컬에서
+자동 생성하는 복구는 서버와 불일치하므로 제공하지 않습니다.
+
 ## 무중단 키 회전
 
 키 제거는 단순 정리가 아니라 즉시 revocation입니다. 저장된 최신
