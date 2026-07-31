@@ -21,6 +21,19 @@ const TASK_STATES = new Set([
   "verification_disputed",
   "invalidated",
 ]);
+const ROADMAP_PHASE_IDS = [
+  "P01-TRUTH",
+  "P02-ORCHESTRATION",
+  "P03-EVIDENCE",
+  "P04-WORLD",
+  "P05-FINANCE",
+  "P06-TWIN",
+  "P07-WORKSPACE",
+  "P08-CORE",
+  "P09-HARNESS",
+  "P10-COGNIBOARD",
+  "P11-RELEASE",
+];
 
 export function jsonResponse(value, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(value, null, 2), {
@@ -320,6 +333,7 @@ export function validateSnapshot(payload) {
       "data_classification",
       "orchestrator",
       "tasks_summary",
+      "roadmap",
       "agents",
       "tasks",
       "ledger_events",
@@ -503,6 +517,105 @@ export function validateSnapshot(payload) {
         "snapshot.tasks_summary.completion_percentage is not evidence-derived",
       );
     }
+  }
+
+  const roadmap = requireObject(payload.roadmap, "snapshot.roadmap");
+  rejectUnexpectedKeys(
+    roadmap,
+    new Set([
+      "schema_version",
+      "total",
+      "trusted_complete",
+      "progress_percent",
+      "progress_basis",
+      "phases",
+    ]),
+    "snapshot.roadmap",
+  );
+  if (roadmap.schema_version !== 1) {
+    throw new Error("snapshot.roadmap.schema_version is unsupported");
+  }
+  if (roadmap.total !== ROADMAP_PHASE_IDS.length) {
+    throw new Error("snapshot.roadmap.total must be 11");
+  }
+  if (
+    !Number.isInteger(roadmap.trusted_complete) ||
+    roadmap.trusted_complete < 0 ||
+    roadmap.trusted_complete > ROADMAP_PHASE_IDS.length
+  ) {
+    throw new Error("snapshot.roadmap.trusted_complete is invalid");
+  }
+  if (roadmap.progress_basis !== "trusted-roadmap-task-states") {
+    throw new Error("snapshot.roadmap.progress_basis is unsupported");
+  }
+  if (
+    !Array.isArray(roadmap.phases) ||
+    roadmap.phases.length !== ROADMAP_PHASE_IDS.length
+  ) {
+    throw new Error("snapshot.roadmap.phases must contain exactly 11 phases");
+  }
+  const taskById = new Map(payload.tasks.map((task) => [task.id, task]));
+  let projectedRoadmapComplete = 0;
+  roadmap.phases.forEach((phase, index) => {
+    const name = `snapshot.roadmap.phases[${index}]`;
+    requireObject(phase, name);
+    rejectUnexpectedKeys(
+      phase,
+      new Set(["id", "title", "state", "trusted_complete", "prerequisites"]),
+      name,
+    );
+    if (phase.id !== ROADMAP_PHASE_IDS[index]) {
+      throw new Error(`${name}.id is not the canonical phase at this index`);
+    }
+    requireString(phase.title, `${name}.title`, { max: 1024 });
+    if (phase.state !== "missing" && !TASK_STATES.has(phase.state)) {
+      throw new Error(`${name}.state is unsupported`);
+    }
+    if (typeof phase.trusted_complete !== "boolean") {
+      throw new Error(`${name}.trusted_complete must be boolean`);
+    }
+    const expectedPrerequisites =
+      index === 0 ? [] : [ROADMAP_PHASE_IDS[index - 1]];
+    if (
+      !Array.isArray(phase.prerequisites) ||
+      phase.prerequisites.length !== expectedPrerequisites.length ||
+      phase.prerequisites.some(
+        (prerequisite, prerequisiteIndex) =>
+          prerequisite !== expectedPrerequisites[prerequisiteIndex],
+      )
+    ) {
+      throw new Error(`${name}.prerequisites are not canonical`);
+    }
+    const task = taskById.get(phase.id);
+    const expectedState = task ? task.state : "missing";
+    if (phase.state !== expectedState) {
+      throw new Error(`${name}.state does not match snapshot.tasks`);
+    }
+    const expectedComplete =
+      phase.state === "verified" || phase.state === "archived";
+    if (phase.trusted_complete !== expectedComplete) {
+      throw new Error(`${name}.trusted_complete is not evidence-derived`);
+    }
+    if (expectedComplete) projectedRoadmapComplete += 1;
+  });
+  if (roadmap.trusted_complete !== projectedRoadmapComplete) {
+    throw new Error(
+      "snapshot.roadmap.trusted_complete does not match trusted phase states",
+    );
+  }
+  const expectedRoadmapProgress =
+    Math.round(
+      (projectedRoadmapComplete / ROADMAP_PHASE_IDS.length) * 1000,
+    ) / 10;
+  requireFiniteNumber(
+    roadmap.progress_percent,
+    "snapshot.roadmap.progress_percent",
+    { min: 0, max: 100 },
+  );
+  if (Math.abs(roadmap.progress_percent - expectedRoadmapProgress) > 0.05) {
+    throw new Error(
+      "snapshot.roadmap.progress_percent is not evidence-derived",
+    );
   }
 
   if (!Array.isArray(payload.agents) || payload.agents.length > 128) {
@@ -1022,6 +1135,14 @@ export function failClosedSnapshot(
       completion_percentage: null,
       progress_basis: "unavailable",
     },
+    roadmap: {
+      schema_version: 1,
+      total: 11,
+      trusted_complete: 0,
+      progress_percent: null,
+      progress_basis: "unavailable",
+      phases: [],
+    },
     agents: [],
     tasks: [],
     ledger_events: [],
@@ -1098,6 +1219,14 @@ export function withMonitoringEnvelope(payload, row, now = new Date()) {
       rejected: 0,
       completion_percentage: null,
       progress_basis: "stale-unavailable",
+    };
+    copy.roadmap = {
+      schema_version: 1,
+      total: 11,
+      trusted_complete: 0,
+      progress_percent: null,
+      progress_basis: "stale-unavailable",
+      phases: [],
     };
     copy.agents = [];
     copy.tasks = [];

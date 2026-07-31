@@ -46,8 +46,10 @@ def render_task_prompt(
         "## Preregistered gates\n"
         f"```json\n{gates}\n```\n\n"
         "Do not claim completion by process exit alone. Write the six-section report "
-        "and schema_version=1 evidence manifest. Unmeasured values must be [FILL]. "
-        "A skipped test is not a pass.\n"
+        "and schema_version=1 evidence manifest. Omit unmeasured claims from the "
+        "evidence manifest and record each one in the report as an explicit NO_GO "
+        "limitation. Never place [FILL] or any unresolved placeholder in the report "
+        "or evidence manifest. A skipped test is not a pass.\n"
     )
 
 

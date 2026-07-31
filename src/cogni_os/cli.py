@@ -13,6 +13,7 @@ from .dashboard import serve_dashboard
 from .doctor import audit_legacy_workspace, audit_workspace
 from .errors import CogniError
 from .evidence import validate_submission
+from .roadmap import bootstrap_roadmap, roadmap_status
 from .workspace import Workspace
 
 
@@ -214,6 +215,20 @@ def _cmd_dashboard(args: argparse.Namespace) -> None:
     serve_dashboard(args.path, host=args.host, port=args.port)
 
 
+def _cmd_roadmap_bootstrap(args: argparse.Namespace) -> None:
+    _emit(
+        bootstrap_roadmap(
+            _workspace(args.path),
+            actor=args.actor,
+            owner=args.owner,
+        )
+    )
+
+
+def _cmd_roadmap_status(args: argparse.Namespace) -> None:
+    _emit(roadmap_status(_workspace(args.path)))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cogni",
@@ -235,6 +250,39 @@ def build_parser() -> argparse.ArgumentParser:
     p_status = subparsers.add_parser("status", help="Display workspace status")
     p_status.add_argument("path", help="Path to workspace root")
     p_status.set_defaults(func=_cmd_status)
+
+    # evidence-gated Phase 1-11 roadmap
+    p_roadmap = subparsers.add_parser(
+        "roadmap",
+        help="Manage the canonical Cogni-OS Phase 1-11 task graph",
+    )
+    roadmap_subs = p_roadmap.add_subparsers(
+        dest="roadmap_command",
+        required=True,
+    )
+    p_roadmap_bootstrap = roadmap_subs.add_parser(
+        "bootstrap",
+        help="Idempotently register Phase 1-11 task contracts",
+    )
+    p_roadmap_bootstrap.add_argument("path", help="Path to workspace root")
+    p_roadmap_bootstrap.add_argument(
+        "--actor",
+        default="codex",
+        help="Accountable orchestrator actor",
+    )
+    p_roadmap_bootstrap.add_argument(
+        "--owner",
+        default="antigravity",
+        help="Primary executant for roadmap tasks",
+    )
+    p_roadmap_bootstrap.set_defaults(func=_cmd_roadmap_bootstrap)
+
+    p_roadmap_status = roadmap_subs.add_parser(
+        "status",
+        help="Show progress from verified or archived roadmap tasks only",
+    )
+    p_roadmap_status.add_argument("path", help="Path to workspace root")
+    p_roadmap_status.set_defaults(func=_cmd_roadmap_status)
 
     # agent subcommands
     p_agent = subparsers.add_parser("agent", help="Manage registered agents")

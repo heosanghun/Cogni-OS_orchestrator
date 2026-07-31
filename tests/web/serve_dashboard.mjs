@@ -124,6 +124,32 @@ function liveFixture() {
       completion_percentage: 0,
       progress_basis: "trusted-ledger-task-states",
     },
+    roadmap: {
+      schema_version: 1,
+      total: 11,
+      trusted_complete: 0,
+      progress_percent: 0,
+      progress_basis: "trusted-roadmap-task-states",
+      phases: [
+        "P01-TRUTH",
+        "P02-ORCHESTRATION",
+        "P03-EVIDENCE",
+        "P04-WORLD",
+        "P05-FINANCE",
+        "P06-TWIN",
+        "P07-WORKSPACE",
+        "P08-CORE",
+        "P09-HARNESS",
+        "P10-COGNIBOARD",
+        "P11-RELEASE",
+      ].map((id, index, phaseIds) => ({
+        id,
+        title: `Phase ${index + 1}`,
+        state: "missing",
+        trusted_complete: false,
+        prerequisites: index === 0 ? [] : [phaseIds[index - 1]],
+      })),
+    },
     agents: [
       {
         id: "codex",

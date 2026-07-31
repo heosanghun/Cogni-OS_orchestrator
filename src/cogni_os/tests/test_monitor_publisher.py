@@ -15,19 +15,82 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.publish_monitor_snapshot import (  # noqa: E402
+    build_snapshot,
     collector_host_id,
     collect_gpus,
     export_agents,
     export_tasks,
     hmac_signature,
+    next_sequence,
+    peek_next_sequence,
     release_gate,
     signature_message,
     task_trust_state,
     validate_publish_endpoint,
 )
+from cogni_os.workspace import Workspace  # noqa: E402
 
 
 class MonitorPublisherTests(unittest.TestCase):
+    def test_publisher_state_can_live_outside_read_only_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = Workspace.initialize(
+                root / "workspace",
+                name="Read-only Projection Test",
+                orchestrator="codex",
+                orchestrator_control_principal="codex-conductor",
+                orchestrator_model_family="openai-codex",
+                preset="cogni-codex-antigravity",
+            )
+            state_dir = root / "publisher-state"
+
+            self.assertEqual(
+                peek_next_sequence(workspace, state_dir=state_dir),
+                1,
+            )
+            self.assertEqual(
+                next_sequence(workspace, state_dir=state_dir),
+                1,
+            )
+            self.assertEqual(
+                peek_next_sequence(workspace, state_dir=state_dir),
+                2,
+            )
+            self.assertTrue(
+                (state_dir / "monitor_publish_state.json").is_file(),
+            )
+            self.assertFalse(
+                (workspace.control_dir / "monitor_publish_state.json").exists(),
+            )
+
+    def test_snapshot_contains_evidence_derived_phase_roadmap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Workspace.initialize(
+                Path(temporary),
+                name="Publisher Roadmap Test",
+                orchestrator="codex",
+                orchestrator_control_principal="codex-conductor",
+                orchestrator_model_family="openai-codex",
+                preset="cogni-codex-antigravity",
+            )
+            snapshot = build_snapshot(
+                workspace,
+                sequence=1,
+                include_gpu=False,
+            )
+
+        self.assertEqual(snapshot["roadmap"]["total"], 11)
+        self.assertEqual(snapshot["roadmap"]["trusted_complete"], 0)
+        self.assertEqual(snapshot["roadmap"]["progress_percent"], 0.0)
+        self.assertEqual(len(snapshot["roadmap"]["phases"]), 11)
+        self.assertTrue(
+            all(
+                phase["state"] == "missing"
+                for phase in snapshot["roadmap"]["phases"]
+            )
+        )
+
     def test_publish_endpoint_is_exactly_pinned(self) -> None:
         production = (
             "https://cogni-os-orchestrator.pages.dev/api/ingest"
