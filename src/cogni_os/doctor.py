@@ -290,7 +290,7 @@ def audit_workspace(
                 ):
                     effective_state = "verified"
                 acknowledged = effective_state in {"verified", "archived"}
-            trusted = (effective_state in {"verified", "archived"}) or (raw_state == "archived") or isinstance(restatement, dict)
+            trusted = (effective_state in {"verified", "archived"}) or (raw_state == "archived")
             if not trusted:
                 release_blockers.append(task["id"])
                 if not acknowledged:
