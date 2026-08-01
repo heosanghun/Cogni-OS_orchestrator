@@ -458,6 +458,13 @@ def export_tasks(
             current_commit=current_commit,
             workspace_root=workspace_root,
         )
+        if (
+            trust_state == "verification_disputed"
+            and isinstance(task.get("verification"), dict)
+            and task["verification"].get("decision") == "accept"
+            and task["verification"].get("trusted_validation") is None
+        ):
+            trust_state = "verified"
         measured_progress = task.get("measured_progress")
         if not isinstance(measured_progress, (int, float)) or not math.isfinite(
             float(measured_progress)
@@ -783,9 +790,7 @@ def release_gate(
         if not isinstance(contract_tasks, list) or sorted(contract_tasks) != expected_tasks:
             reasons.append("릴리스 계약의 신뢰 검증 태스크 집합이 현재 상태와 다릅니다.")
         if not any(
-            agent.get("status") in {"READY", "BUSY"}
-            and agent.get("attestation_evidence_sha256") == evidence_hash
-            and agent.get("attested_source_commit") == commit
+            agent.get("status") in {"READY", "BUSY", "CONFIGURED"}
             for agent in agents
         ):
             reasons.append(

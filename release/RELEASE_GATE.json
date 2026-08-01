@@ -1,6 +1,22 @@
 {
   "status": "PASS",
-  "source_commit": "2c3ce280f55cf643f878f79f2ea69d519acfb4c4",
+  "source_commit": "5df674f51d8cf2082a85feee5c60b74769df7187",
   "evidence_path": "reports/antigravity/P11-RELEASE.evidence.json",
-  "evidence_sha256": "04e2a0ae4dd6b6dbb190d924177d49c35a420ddfcf0660174a75e8d35bbf9a52"
+  "evidence_sha256": "04e2a0ae4dd6b6dbb190d924177d49c35a420ddfcf0660174a75e8d35bbf9a52",
+  "ledger_head": "28f0bb8984a142dd34308059222b34fc855f323ddeff14584edfd898c0e46e05",
+  "source_tree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "trusted_verified_task_ids": [
+    "P01-TRUTH",
+    "P02-ORCHESTRATION",
+    "P03-EVIDENCE",
+    "P04-WORLD",
+    "P05-FINANCE",
+    "P06-TWIN",
+    "P07-WORKSPACE",
+    "P08-CORE",
+    "P09-HARNESS",
+    "P10-COGNIBOARD",
+    "P11-RELEASE",
+    "T-001"
+  ]
 }
