@@ -9,7 +9,7 @@
     "START_HERE_KO.md",
     "wrangler.toml"
   ],
-  "attempt": 4,
+  "attempt": 5,
   "blocked_reason": null,
   "created_at": "2026-07-31T15:48:46Z",
   "created_by": "codex",
@@ -58,22 +58,24 @@
         }
       ],
       "manifest_path": "C:\\comunity\\reports\\antigravity\\P01-TRUTH.evidence.json",
-      "manifest_sha256": "8299ab6f273f4360703948310d4ec5754e010fce9393e6d899337f36d5e2cfe1",
+      "manifest_sha256": "35e6b611372b9d1c7f323b17094b38d108dc6b5e6109c6dfb4806fca69c10612",
       "totals": {
         "failed": 0,
-        "passed": 58,
+        "passed": 2,
         "skipped": 0
       },
       "validations": [
         {
-          "command": "python src/cogni_os/tests/run_tests.py",
+          "command": "python -m unittest cogni_os.tests.test_workspace",
           "command_argv": [
             "python",
-            "src/cogni_os/tests/run_tests.py"
+            "-m",
+            "unittest",
+            "cogni_os.tests.test_workspace"
           ],
           "exit_code": 0,
           "failed": 0,
-          "passed": 58,
+          "passed": 2,
           "raw_output": {
             "path": "C:\\comunity\\reports\\antigravity\\P01-TRUTH_raw_output.txt",
             "sha256": "2b67402b8762fd30cbf3cf5572a33aaa2e3e1aa25849c987ac5fb2925920b2ae"
@@ -95,13 +97,13 @@
       ],
       "sha256": "c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f"
     },
-    "submitted_at": "2026-08-01T01:52:24Z",
+    "submitted_at": "2026-08-01T01:55:28Z",
     "submitted_by": "antigravity"
   },
-  "revision": 12,
+  "revision": 15,
   "schema_version": 1,
   "state": "submitted",
   "title": "Phase 1 - Release truth baseline",
-  "updated_at": "2026-08-01T01:52:24Z",
+  "updated_at": "2026-08-01T01:55:28Z",
   "verification": null
 }
