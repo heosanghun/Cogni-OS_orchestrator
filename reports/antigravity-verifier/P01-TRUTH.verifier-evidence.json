@@ -16,7 +16,7 @@
       "skipped": 0,
       "skip_reasons": [],
       "raw_output_path": "P01-TRUTH_raw_output.txt",
-      "raw_output_sha256": "2b67402b8762fd30cbf3cf5572a33aaa2e3e1aa25849c987ac5fb2925920b2ae"
+      "raw_output_sha256": "562eadb12078996cef3f9f9a31b7339070b06080a811bfd2f2655fb2de843cb9"
     }
   ],
   "known_answer_checks": [
