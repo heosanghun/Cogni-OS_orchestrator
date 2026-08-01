@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd\\files\\4c21d32f_P04-WORLD.verifier-report.md",
+      "sha256": "4c21d32f0f35aaf04760a3e16d7a9077a73a7a9f1e59467216203a7c0aa4e5be"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd",
+  "label": "verifier",
+  "manifest_sha256": "bf0178bdcc1d7a3a8d4a1d1427a24911495fd12c95aff13d58c3796d441830b5",
+  "schema_version": 1,
+  "task_id": "P04-WORLD"
+}
