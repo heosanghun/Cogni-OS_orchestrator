@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\verifier-cc9a8551\\files\\6a9364a8_P11-RELEASE.verifier-report.md",
+      "sha256": "6a9364a886c6a6ba52c78a632874d44a8bf733dbfb3e12d0c46dd5f167c75dab"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\verifier-cc9a8551",
+  "label": "verifier",
+  "manifest_sha256": "cc9a8551cfeffbad7fbafbb7d05d082f0874a53563c93bf61ad69b9d57afa405",
+  "schema_version": 1,
+  "task_id": "P11-RELEASE"
+}
