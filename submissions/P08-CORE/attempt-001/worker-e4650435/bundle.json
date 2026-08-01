@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P08-CORE\\attempt-001\\worker-e4650435\\files\\e3f90a8a_P08-CORE.md",
+      "sha256": "e3f90a8a6f139f7f9a1347e218a5a7dd7d7f679dedb2af2f1cfff5b0a192e9df"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P08-CORE\\attempt-001\\worker-e4650435",
+  "label": "worker",
+  "manifest_sha256": "e465043565727e17e08e209b6b2f3b6c2314d6492981f60e83f2b5a87cbc489a",
+  "schema_version": 1,
+  "task_id": "P08-CORE"
+}

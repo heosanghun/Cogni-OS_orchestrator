@@ -18,7 +18,8 @@ SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 def _safe_name(path: Path) -> str:
     value = SAFE_NAME_RE.sub("_", path.name).strip("._")
-    return value[:32] if value else "artifact"
+    value = value[:32].rstrip(".")
+    return value if value else "artifact"
 
 
 def _win_long_path(path: Path) -> str:

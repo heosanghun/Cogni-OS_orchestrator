@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "path": "P08-CORE.md",
+      "sha256": "e3f90a8a6f139f7f9a1347e218a5a7dd7d7f679dedb2af2f1cfff5b0a192e9df"
+    }
+  ],
+  "validations": [
+    {
+      "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+      "command_argv": ["C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe", "src/cogni_os/tests/run_tests.py"],
+      "exit_code": 0,
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0,
+      "skip_reasons": [],
+      "raw_output_path": "P08-CORE_raw_output.txt",
+      "raw_output_sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7"
+    }
+  ],
+  "known_answer_checks": [
+    {
+      "name": "P08_Core_Verification",
+      "expected": "cogni_core_established",
+      "observed": "cogni_core_established",
+      "passed": true
+    }
+  ],
+  "claims": [
+    {
+      "name": "phase8_cogni_core",
+      "kind": "functional",
+      "measured": true,
+      "value": "pass",
+      "evidence": ["P08-CORE.md"]
+    }
+  ]
+}

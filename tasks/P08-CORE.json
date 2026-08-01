@@ -7,7 +7,7 @@
     "benchmarks",
     "config"
   ],
-  "attempt": 0,
+  "attempt": 1,
   "blocked_reason": null,
   "created_at": "2026-07-31T15:48:46Z",
   "created_by": "codex",
@@ -30,11 +30,78 @@
   "prerequisites": [
     "P07-WORKSPACE"
   ],
-  "result": null,
-  "revision": 1,
+  "result": {
+    "manifest": {
+      "artifacts": [
+        {
+          "path": "C:\\comunity\\reports\\antigravity\\P08-CORE.md",
+          "sha256": "e3f90a8a6f139f7f9a1347e218a5a7dd7d7f679dedb2af2f1cfff5b0a192e9df"
+        }
+      ],
+      "claims": [
+        {
+          "evidence": [
+            "P08-CORE.md"
+          ],
+          "kind": "functional",
+          "measured": true,
+          "name": "phase8_cogni_core",
+          "value": "pass"
+        }
+      ],
+      "known_answer_checks": [
+        {
+          "expected": "cogni_core_established",
+          "name": "P08_Core_Verification",
+          "observed": "cogni_core_established",
+          "passed": true
+        }
+      ],
+      "manifest_path": "C:\\comunity\\reports\\antigravity\\P08-CORE.evidence.json",
+      "manifest_sha256": "e465043565727e17e08e209b6b2f3b6c2314d6492981f60e83f2b5a87cbc489a",
+      "totals": {
+        "failed": 0,
+        "passed": 58,
+        "skipped": 0
+      },
+      "validations": [
+        {
+          "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "failed": 0,
+          "passed": 58,
+          "raw_output": {
+            "path": "C:\\comunity\\reports\\antigravity\\P08-CORE_raw_output.txt",
+            "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7"
+          },
+          "skipped": 0
+        }
+      ]
+    },
+    "report": {
+      "contains_fill_marker": false,
+      "path": "C:\\comunity\\reports\\antigravity\\P08-CORE.md",
+      "sections": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "sha256": "e3f90a8a6f139f7f9a1347e218a5a7dd7d7f679dedb2af2f1cfff5b0a192e9df"
+    },
+    "submitted_at": "2026-08-01T02:14:35Z",
+    "submitted_by": "antigravity"
+  },
+  "revision": 4,
   "schema_version": 1,
-  "state": "pending",
+  "state": "submitted",
   "title": "Phase 8 - Cogni-Core measured integration",
-  "updated_at": "2026-07-31T15:48:46Z",
+  "updated_at": "2026-08-01T02:14:35Z",
   "verification": null
 }
