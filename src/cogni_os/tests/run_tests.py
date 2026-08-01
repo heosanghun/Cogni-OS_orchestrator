@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 import sys
+import pathlib
+
+# Ensure src directory is on python path for trusted verification
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
+
 import unittest
 
 if __name__ == "__main__":
