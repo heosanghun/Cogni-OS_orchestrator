@@ -1,0 +1,39 @@
+{
+  "allowed_write_roots": [
+    "src",
+    "tests",
+    "docs",
+    "schemas",
+    "worldpacks"
+  ],
+  "attempt": 0,
+  "blocked_reason": null,
+  "created_at": "2026-07-31T15:48:46Z",
+  "created_by": "codex",
+  "description": "Implement Entity-State-Transition-Constraint schemas, World DSL, belief versus committed state separation, policy verdicts, SSOT commit, human escalation, and rollback. Acceptance: forbidden transitions never commit, deterministic state hashes replay, and all verdicts cite evidence.",
+  "gates": {
+    "allow_skips": false,
+    "require_independent_verification": true,
+    "require_known_answer_check": true,
+    "require_validation": true
+  },
+  "id": "P04-WORLD",
+  "idempotency_key": "cogni-os-roadmap-v1:P04-WORLD",
+  "lease": null,
+  "owner": "antigravity",
+  "permissions": {
+    "gpu": false,
+    "network": false,
+    "performance_metrics": false
+  },
+  "prerequisites": [
+    "P03-EVIDENCE"
+  ],
+  "result": null,
+  "revision": 1,
+  "schema_version": 1,
+  "state": "pending",
+  "title": "Phase 4 - ESTC world kernel",
+  "updated_at": "2026-07-31T15:48:46Z",
+  "verification": null
+}

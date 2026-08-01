@@ -1,0 +1,41 @@
+{
+  "allowed_write_roots": [
+    "src",
+    "tests",
+    "docs",
+    "release",
+    "launcher",
+    "worldpacks",
+    "scripts"
+  ],
+  "attempt": 0,
+  "blocked_reason": null,
+  "created_at": "2026-07-31T15:48:46Z",
+  "created_by": "codex",
+  "description": "Package the offline Windows appliance, launcher preflight, SBOM, recovery image, operations manual, finance POC evidence pack, and reusable Bio and Defense World Pack contracts. Acceptance: target RTX 4090 runs, 30-run reproduction, restart recovery, rollback, offline network-zero, installer, GPU 0-5 enforcement, and customer replay drills all pass before release.",
+  "gates": {
+    "allow_skips": false,
+    "require_independent_verification": true,
+    "require_known_answer_check": true,
+    "require_validation": true
+  },
+  "id": "P11-RELEASE",
+  "idempotency_key": "cogni-os-roadmap-v1:P11-RELEASE",
+  "lease": null,
+  "owner": "antigravity",
+  "permissions": {
+    "gpu": true,
+    "network": false,
+    "performance_metrics": true
+  },
+  "prerequisites": [
+    "P10-COGNIBOARD"
+  ],
+  "result": null,
+  "revision": 1,
+  "schema_version": 1,
+  "state": "pending",
+  "title": "Phase 11 - Appliance POC and verified release",
+  "updated_at": "2026-07-31T15:48:46Z",
+  "verification": null
+}

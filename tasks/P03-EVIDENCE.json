@@ -1,0 +1,39 @@
+{
+  "allowed_write_roots": [
+    "src",
+    "tests",
+    "docs",
+    "schemas",
+    "scripts"
+  ],
+  "attempt": 0,
+  "blocked_reason": null,
+  "created_at": "2026-07-31T15:48:46Z",
+  "created_by": "codex",
+  "description": "Create typed Evidence Capsules for every execution: requirement, input, model, code, environment, world, policy, command, output, verifier, replay, and rollback provenance. Acceptance: any missing, skipped, unmeasured, wrong-commit, or unverifiable field makes the release NO_GO.",
+  "gates": {
+    "allow_skips": false,
+    "require_independent_verification": true,
+    "require_known_answer_check": true,
+    "require_validation": true
+  },
+  "id": "P03-EVIDENCE",
+  "idempotency_key": "cogni-os-roadmap-v1:P03-EVIDENCE",
+  "lease": null,
+  "owner": "antigravity",
+  "permissions": {
+    "gpu": false,
+    "network": false,
+    "performance_metrics": false
+  },
+  "prerequisites": [
+    "P02-ORCHESTRATION"
+  ],
+  "result": null,
+  "revision": 1,
+  "schema_version": 1,
+  "state": "pending",
+  "title": "Phase 3 - Evidence kernel",
+  "updated_at": "2026-07-31T15:48:46Z",
+  "verification": null
+}

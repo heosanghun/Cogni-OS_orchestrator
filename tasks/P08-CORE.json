@@ -1,0 +1,40 @@
+{
+  "allowed_write_roots": [
+    "src",
+    "tests",
+    "docs",
+    "cogni_core",
+    "benchmarks",
+    "config"
+  ],
+  "attempt": 0,
+  "blocked_reason": null,
+  "created_at": "2026-07-31T15:48:46Z",
+  "created_by": "codex",
+  "description": "Integrate the attested local Gemma backbone in the required order: DEQ/CTS, System 1.5 Fast Weight, System 2.5 FP-EWC and C-FIRE, System 3 sparse experts, then System 4 tensor collaboration. Acceptance: each module remains gated until target-hardware memory, convergence, latency, finite-value, and fallback evidence passes on GPUs 0-5 only.",
+  "gates": {
+    "allow_skips": false,
+    "require_independent_verification": true,
+    "require_known_answer_check": true,
+    "require_validation": true
+  },
+  "id": "P08-CORE",
+  "idempotency_key": "cogni-os-roadmap-v1:P08-CORE",
+  "lease": null,
+  "owner": "antigravity",
+  "permissions": {
+    "gpu": true,
+    "network": false,
+    "performance_metrics": true
+  },
+  "prerequisites": [
+    "P07-WORKSPACE"
+  ],
+  "result": null,
+  "revision": 1,
+  "schema_version": 1,
+  "state": "pending",
+  "title": "Phase 8 - Cogni-Core measured integration",
+  "updated_at": "2026-07-31T15:48:46Z",
+  "verification": null
+}

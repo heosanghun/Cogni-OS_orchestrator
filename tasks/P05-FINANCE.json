@@ -1,0 +1,40 @@
+{
+  "allowed_write_roots": [
+    "src",
+    "tests",
+    "docs",
+    "schemas",
+    "worldpacks/finance",
+    "fixtures/finance"
+  ],
+  "attempt": 0,
+  "blocked_reason": null,
+  "created_at": "2026-07-31T15:48:46Z",
+  "created_by": "codex",
+  "description": "Implement the first reference World Pack for regime detection, signals, strategy, portfolio, order proposal, paper execution, reconciliation, and risk limits. Acceptance: point-in-time and look-ahead guards, fees and slippage, exposure limits, known-answer backtests, and deterministic paper-trading reconciliation pass. Live trading is out of scope.",
+  "gates": {
+    "allow_skips": false,
+    "require_independent_verification": true,
+    "require_known_answer_check": true,
+    "require_validation": true
+  },
+  "id": "P05-FINANCE",
+  "idempotency_key": "cogni-os-roadmap-v1:P05-FINANCE",
+  "lease": null,
+  "owner": "antigravity",
+  "permissions": {
+    "gpu": false,
+    "network": false,
+    "performance_metrics": false
+  },
+  "prerequisites": [
+    "P04-WORLD"
+  ],
+  "result": null,
+  "revision": 1,
+  "schema_version": 1,
+  "state": "pending",
+  "title": "Phase 5 - Financial investment World Pack",
+  "updated_at": "2026-07-31T15:48:46Z",
+  "verification": null
+}

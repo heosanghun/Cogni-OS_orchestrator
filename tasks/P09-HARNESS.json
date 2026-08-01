@@ -1,0 +1,40 @@
+{
+  "allowed_write_roots": [
+    "src",
+    "tests",
+    "docs",
+    "cogni_flow",
+    "self_harness",
+    "proposals"
+  ],
+  "attempt": 0,
+  "blocked_reason": null,
+  "created_at": "2026-07-31T15:48:46Z",
+  "created_by": "codex",
+  "description": "Implement failure collection, bounded patch proposals, isolated regression and security tests, independent verification, canary promotion, and signed rollback. Acceptance: inference and evolution are mutually exclusive and no model or worker can mutate production directly.",
+  "gates": {
+    "allow_skips": false,
+    "require_independent_verification": true,
+    "require_known_answer_check": true,
+    "require_validation": true
+  },
+  "id": "P09-HARNESS",
+  "idempotency_key": "cogni-os-roadmap-v1:P09-HARNESS",
+  "lease": null,
+  "owner": "antigravity",
+  "permissions": {
+    "gpu": false,
+    "network": false,
+    "performance_metrics": false
+  },
+  "prerequisites": [
+    "P08-CORE"
+  ],
+  "result": null,
+  "revision": 1,
+  "schema_version": 1,
+  "state": "pending",
+  "title": "Phase 9 - Governed Self-Harness",
+  "updated_at": "2026-07-31T15:48:46Z",
+  "verification": null
+}

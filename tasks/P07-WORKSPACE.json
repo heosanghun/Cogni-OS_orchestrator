@@ -1,0 +1,40 @@
+{
+  "allowed_write_roots": [
+    "src",
+    "tests",
+    "docs",
+    "cogniboard",
+    "cogni_agent",
+    "assets"
+  ],
+  "attempt": 0,
+  "blocked_reason": null,
+  "created_at": "2026-07-31T15:48:46Z",
+  "created_by": "codex",
+  "description": "Integrate natural conversation, local tools, file/PDF/image attachments, local RAG, voice, model selection, cancellation, continuation, and bounded history. Acceptance: no hard-coded answer path, no unbounded repetition, no silent truncation, explicit capability truth, and offline tool policy.",
+  "gates": {
+    "allow_skips": false,
+    "require_independent_verification": true,
+    "require_known_answer_check": true,
+    "require_validation": true
+  },
+  "id": "P07-WORKSPACE",
+  "idempotency_key": "cogni-os-roadmap-v1:P07-WORKSPACE",
+  "lease": null,
+  "owner": "antigravity",
+  "permissions": {
+    "gpu": false,
+    "network": false,
+    "performance_metrics": false
+  },
+  "prerequisites": [
+    "P06-TWIN"
+  ],
+  "result": null,
+  "revision": 1,
+  "schema_version": 1,
+  "state": "pending",
+  "title": "Phase 7 - Local agent workspace",
+  "updated_at": "2026-07-31T15:48:46Z",
+  "verification": null
+}
