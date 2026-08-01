@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P10-COGNIBOARD\\attempt-001\\verifier-5696b0aa\\files\\382b1274_P10-COGNIBOARD.verifier-report.m",
+      "sha256": "382b127480acbfbe9cfd6863973014daef04381ad8a669098f257679b1e3f1a9"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P10-COGNIBOARD\\attempt-001\\verifier-5696b0aa",
+  "label": "verifier",
+  "manifest_sha256": "5696b0aa2562af5ec1f21c9afa74d21a2ae2930a6ca78a3c7e83e5bd07b891b0",
+  "schema_version": 1,
+  "task_id": "P10-COGNIBOARD"
+}

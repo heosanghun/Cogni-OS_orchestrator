@@ -8,7 +8,7 @@
     "worldpacks",
     "scripts"
   ],
-  "attempt": 0,
+  "attempt": 1,
   "blocked_reason": null,
   "created_at": "2026-07-31T15:48:46Z",
   "created_by": "codex",
@@ -31,11 +31,78 @@
   "prerequisites": [
     "P10-COGNIBOARD"
   ],
-  "result": null,
-  "revision": 1,
+  "result": {
+    "manifest": {
+      "artifacts": [
+        {
+          "path": "C:\\comunity\\reports\\antigravity\\P11-RELEASE.md",
+          "sha256": "8e46cd77ad4a5e547a25014069ab02c41d6379768c10fd49e8d656e29be7ccb9"
+        }
+      ],
+      "claims": [
+        {
+          "evidence": [
+            "P11-RELEASE.md"
+          ],
+          "kind": "functional",
+          "measured": true,
+          "name": "phase11_appliance_release",
+          "value": "pass"
+        }
+      ],
+      "known_answer_checks": [
+        {
+          "expected": "cogni_os_release_ready",
+          "name": "P11_Release_Verification",
+          "observed": "cogni_os_release_ready",
+          "passed": true
+        }
+      ],
+      "manifest_path": "C:\\comunity\\reports\\antigravity\\P11-RELEASE.evidence.json",
+      "manifest_sha256": "04e2a0ae4dd6b6dbb190d924177d49c35a420ddfcf0660174a75e8d35bbf9a52",
+      "totals": {
+        "failed": 0,
+        "passed": 58,
+        "skipped": 0
+      },
+      "validations": [
+        {
+          "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "failed": 0,
+          "passed": 58,
+          "raw_output": {
+            "path": "C:\\comunity\\reports\\antigravity\\P11-RELEASE_raw_output.txt",
+            "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7"
+          },
+          "skipped": 0
+        }
+      ]
+    },
+    "report": {
+      "contains_fill_marker": false,
+      "path": "C:\\comunity\\reports\\antigravity\\P11-RELEASE.md",
+      "sections": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "sha256": "8e46cd77ad4a5e547a25014069ab02c41d6379768c10fd49e8d656e29be7ccb9"
+    },
+    "submitted_at": "2026-08-01T02:20:43Z",
+    "submitted_by": "antigravity"
+  },
+  "revision": 4,
   "schema_version": 1,
-  "state": "pending",
+  "state": "submitted",
   "title": "Phase 11 - Appliance POC and verified release",
-  "updated_at": "2026-07-31T15:48:46Z",
+  "updated_at": "2026-08-01T02:20:43Z",
   "verification": null
 }
