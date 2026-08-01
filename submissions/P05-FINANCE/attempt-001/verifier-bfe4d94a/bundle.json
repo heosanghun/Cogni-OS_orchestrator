@@ -10,5 +10,37 @@
   "label": "verifier",
   "manifest_sha256": "bfe4d94a6cb05315b9693037e7a38cb365c67f9fdc8fd715be7732b81e221feb",
   "schema_version": 1,
-  "task_id": "P05-FINANCE"
+  "task_id": "P05-FINANCE",
+  "files": [
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\verifier-bfe4d94a\\files\\380cc568_P05-FINANCE_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\verifier-bfe4d94a\\files\\380cc568_validation-000.log",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_receipt",
+      "archive_path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\verifier-bfe4d94a\\files\\be870543_receipt.json",
+      "sha256": "be870543f9dbf05fb9c35b602be676a8508fdf190eccbeb7c1e9c612fe13b848",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\verifier-bfe4d94a\\files\\bfe4d94a_P05-FINANCE.verifier-evidence.js",
+      "sha256": "bfe4d94a6cb05315b9693037e7a38cb365c67f9fdc8fd715be7732b81e221feb",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\verifier-bfe4d94a\\files\\e4f44024_P05-FINANCE.verifier-report.md",
+      "sha256": "e4f440247726e3a3bd441d5c46119f7bd55de36f4ab3227f57ee1ea26f2f233f",
+      "retained": true
+    }
+  ]
 }

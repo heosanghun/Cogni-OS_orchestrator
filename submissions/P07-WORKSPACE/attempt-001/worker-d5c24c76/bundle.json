@@ -10,5 +10,25 @@
   "label": "worker",
   "manifest_sha256": "d5c24c76074040b4d00b3e4a1ab0011196403a782d075faea6595280c48e059f",
   "schema_version": 1,
-  "task_id": "P07-WORKSPACE"
+  "task_id": "P07-WORKSPACE",
+  "files": [
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\worker-d5c24c76\\files\\380cc568_P07-WORKSPACE_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\worker-d5c24c76\\files\\3f49badc_P07-WORKSPACE.md",
+      "sha256": "3f49badc49597f973b7a53f38eaa3f86d4744f24f7e5edea7668031db38e5b96",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\worker-d5c24c76\\files\\d5c24c76_P07-WORKSPACE.evidence.json",
+      "sha256": "d5c24c76074040b4d00b3e4a1ab0011196403a782d075faea6595280c48e059f",
+      "retained": true
+    }
+  ]
 }

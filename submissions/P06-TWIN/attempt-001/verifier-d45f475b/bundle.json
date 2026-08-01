@@ -10,5 +10,37 @@
   "label": "verifier",
   "manifest_sha256": "d45f475b02f2e77f59211dd1647115406334c8cd030c44e0a94cc6493f4e9c1d",
   "schema_version": 1,
-  "task_id": "P06-TWIN"
+  "task_id": "P06-TWIN",
+  "files": [
+    {
+      "kind": "trusted_runner_receipt",
+      "archive_path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\verifier-d45f475b\\files\\01b44ab0_receipt.json",
+      "sha256": "01b44ab05e80121fc8483645de77f22d2698bd8aaa3877de55b8dd20ac23e8c4",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\verifier-d45f475b\\files\\194dec2a_P06-TWIN.verifier-report.md",
+      "sha256": "194dec2a4ecbe9d65e5d939b20425783863944655bb2003fcbc72cf0404e9610",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\verifier-d45f475b\\files\\380cc568_P06-TWIN_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\verifier-d45f475b\\files\\380cc568_validation-000.log",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\verifier-d45f475b\\files\\d45f475b_P06-TWIN.verifier-evidence.json",
+      "sha256": "d45f475b02f2e77f59211dd1647115406334c8cd030c44e0a94cc6493f4e9c1d",
+      "retained": true
+    }
+  ]
 }

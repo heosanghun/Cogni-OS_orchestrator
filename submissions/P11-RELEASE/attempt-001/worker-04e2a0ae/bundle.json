@@ -10,5 +10,25 @@
   "label": "worker",
   "manifest_sha256": "04e2a0ae4dd6b6dbb190d924177d49c35a420ddfcf0660174a75e8d35bbf9a52",
   "schema_version": 1,
-  "task_id": "P11-RELEASE"
+  "task_id": "P11-RELEASE",
+  "files": [
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\worker-04e2a0ae\\files\\04e2a0ae_P11-RELEASE.evidence.json",
+      "sha256": "04e2a0ae4dd6b6dbb190d924177d49c35a420ddfcf0660174a75e8d35bbf9a52",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\worker-04e2a0ae\\files\\380cc568_P11-RELEASE_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\worker-04e2a0ae\\files\\8e46cd77_P11-RELEASE.md",
+      "sha256": "8e46cd77ad4a5e547a25014069ab02c41d6379768c10fd49e8d656e29be7ccb9",
+      "retained": true
+    }
+  ]
 }

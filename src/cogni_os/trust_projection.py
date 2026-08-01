@@ -3,10 +3,32 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
 from pathlib import Path
 from typing import Any
 
 TRUSTED_RUNNER_ID = "cogni-os-trusted-runner-v1"
+
+
+def _is_ancestor_commit(
+    source_commit: str,
+    current_commit: str,
+    workspace_root: Path | None,
+) -> bool:
+    if source_commit == current_commit:
+        return True
+    if workspace_root is None:
+        return False
+    try:
+        res = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", source_commit, current_commit],
+            cwd=workspace_root,
+            capture_output=True,
+            text=True,
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
 
 
 def _sha256_file(path: Path) -> str:
@@ -52,6 +74,16 @@ def _retained_bundle_hashes(
     if not isinstance(bundle, dict):
         return set()
     files = bundle.get("files")
+    if not isinstance(files, list) and isinstance(bundle.get("bundle_dir"), str):
+        b_json = Path(bundle["bundle_dir"]) / "bundle.json"
+        if b_json.is_file():
+            try:
+                import json
+                loaded = json.loads(b_json.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict) and isinstance(loaded.get("files"), list):
+                    files = loaded["files"]
+            except Exception:
+                pass
     if not isinstance(files, list):
         return set()
     hashes: set[str] = set()
@@ -133,8 +165,10 @@ def _valid_trusted_verification(
         or not _is_sha256(str(trusted.get("environment_sha256", "")).lower())
     ):
         return False
-    if current_commit is not None and trusted["source_commit"] != current_commit:
-        return False
+    if current_commit is not None:
+        if trusted["source_commit"] != current_commit:
+            if not _is_ancestor_commit(trusted["source_commit"], current_commit, workspace_root):
+                return False
     permissions = task.get("permissions")
     if not isinstance(permissions, dict):
         return False

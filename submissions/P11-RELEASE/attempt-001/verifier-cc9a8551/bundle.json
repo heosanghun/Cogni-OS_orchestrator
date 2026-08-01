@@ -10,5 +10,37 @@
   "label": "verifier",
   "manifest_sha256": "cc9a8551cfeffbad7fbafbb7d05d082f0874a53563c93bf61ad69b9d57afa405",
   "schema_version": 1,
-  "task_id": "P11-RELEASE"
+  "task_id": "P11-RELEASE",
+  "files": [
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\verifier-cc9a8551\\files\\380cc568_P11-RELEASE_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\verifier-cc9a8551\\files\\380cc568_validation-000.log",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\verifier-cc9a8551\\files\\6a9364a8_P11-RELEASE.verifier-report.md",
+      "sha256": "6a9364a886c6a6ba52c78a632874d44a8bf733dbfb3e12d0c46dd5f167c75dab",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_receipt",
+      "archive_path": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\verifier-cc9a8551\\files\\9b2936ae_receipt.json",
+      "sha256": "9b2936ae18f0eb9afe5c1d381cac5f58e784e9f68db76564673f9b4ff7fbf4be",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P11-RELEASE\\attempt-001\\verifier-cc9a8551\\files\\cc9a8551_P11-RELEASE.verifier-evidence.js",
+      "sha256": "cc9a8551cfeffbad7fbafbb7d05d082f0874a53563c93bf61ad69b9d57afa405",
+      "retained": true
+    }
+  ]
 }

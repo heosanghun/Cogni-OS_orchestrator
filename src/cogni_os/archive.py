@@ -88,21 +88,40 @@ def archive_evidence_bundle(
     files_dir.mkdir(parents=True, exist_ok=True)
 
     archived_artifacts: list[dict[str, Any]] = []
+    files_record: list[dict[str, Any]] = []
     manifest_dir = Path(manifest["manifest_path"]).parent.resolve()
 
     if report is not None:
         report_src = Path(report["path"]).resolve()
         report_dest = files_dir / f"{report['sha256'][:8]}_{_safe_name(report_src)}"
         _atomic_copy_verified(report_src, report_dest, report["sha256"])
+        files_record.append({
+            "kind": "report",
+            "archive_path": str(report_dest.resolve()),
+            "sha256": report["sha256"],
+            "retained": True,
+        })
 
     manifest_dest = files_dir / f"{manifest['manifest_sha256'][:8]}_{_safe_name(Path(manifest['manifest_path']))}"
     _atomic_copy_verified(Path(manifest["manifest_path"]).resolve(), manifest_dest, manifest["manifest_sha256"])
+    files_record.append({
+        "kind": "manifest",
+        "archive_path": str(manifest_dest.resolve()),
+        "sha256": manifest["manifest_sha256"],
+        "retained": True,
+    })
 
     for artifact in manifest.get("artifacts", []):
         src = (manifest_dir / artifact["path"]).resolve()
         dest = files_dir / f"{artifact['sha256'][:8]}_{_safe_name(src)}"
         _atomic_copy_verified(src, dest, artifact["sha256"])
         archived_artifacts.append({"path": str(dest.resolve()), "sha256": artifact["sha256"]})
+        files_record.append({
+            "kind": "artifact",
+            "archive_path": str(dest.resolve()),
+            "sha256": artifact["sha256"],
+            "retained": True,
+        })
 
     for validation in manifest.get("validations", []):
         raw = validation.get("raw_output")
@@ -110,12 +129,24 @@ def archive_evidence_bundle(
             src = Path(raw["path"]).resolve()
             dest = files_dir / f"{raw['sha256'][:8]}_{_safe_name(src)}"
             _atomic_copy_verified(src, dest, raw["sha256"])
+            files_record.append({
+                "kind": "raw_output",
+                "archive_path": str(dest.resolve()),
+                "sha256": raw["sha256"],
+                "retained": True,
+            })
 
     if extra_files:
         for extra in extra_files:
             src = Path(extra["path"]).resolve()
             dest = files_dir / f"{extra['sha256'][:8]}_{_safe_name(src)}"
             _atomic_copy_verified(src, dest, extra["sha256"])
+            files_record.append({
+                "kind": extra.get("kind", "extra"),
+                "archive_path": str(dest.resolve()),
+                "sha256": extra["sha256"],
+                "retained": True,
+            })
 
     bundle_record = {
         "schema_version": 1,
@@ -125,6 +156,7 @@ def archive_evidence_bundle(
         "manifest_sha256": manifest["manifest_sha256"],
         "bundle_dir": str(bundle_dir.resolve()),
         "archived_artifacts": archived_artifacts,
+        "files": files_record,
     }
     atomic_write_json(bundle_dir / "bundle.json", bundle_record)
     return bundle_record

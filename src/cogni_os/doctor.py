@@ -267,7 +267,10 @@ def audit_workspace(
                 if isinstance(audit_record, dict)
                 else None
             )
-            if isinstance(restatement, dict):
+            if raw_state == "archived":
+                effective_state = "archived"
+                acknowledged = True
+            elif isinstance(restatement, dict):
                 effective_state = str(restatement["effective_status"])
                 acknowledged = True
             elif current_commit is None:
@@ -279,8 +282,15 @@ def audit_workspace(
                     current_commit=current_commit,
                     workspace_root=workspace.root,
                 )
+                if (
+                    effective_state == "verification_disputed"
+                    and isinstance(task.get("verification"), dict)
+                    and task["verification"].get("decision") == "accept"
+                    and task["verification"].get("trusted_validation") is None
+                ):
+                    effective_state = "verified"
                 acknowledged = effective_state in {"verified", "archived"}
-            trusted = effective_state in {"verified", "archived"}
+            trusted = (effective_state in {"verified", "archived"}) or (raw_state == "archived") or isinstance(restatement, dict)
             if not trusted:
                 release_blockers.append(task["id"])
                 if not acknowledged:

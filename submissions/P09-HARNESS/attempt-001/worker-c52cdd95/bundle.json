@@ -10,5 +10,25 @@
   "label": "worker",
   "manifest_sha256": "c52cdd95298fb005f0e2d96d0317fd3695e0cc55242b773f63f5dfe227c253c3",
   "schema_version": 1,
-  "task_id": "P09-HARNESS"
+  "task_id": "P09-HARNESS",
+  "files": [
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P09-HARNESS\\attempt-001\\worker-c52cdd95\\files\\27304cda_P09-HARNESS.md",
+      "sha256": "27304cdafb413f711b1dbc8ec9ef4d90e44af5030bd4eba58a39a53369fceac5",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P09-HARNESS\\attempt-001\\worker-c52cdd95\\files\\380cc568_P09-HARNESS_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P09-HARNESS\\attempt-001\\worker-c52cdd95\\files\\c52cdd95_P09-HARNESS.evidence.json",
+      "sha256": "c52cdd95298fb005f0e2d96d0317fd3695e0cc55242b773f63f5dfe227c253c3",
+      "retained": true
+    }
+  ]
 }

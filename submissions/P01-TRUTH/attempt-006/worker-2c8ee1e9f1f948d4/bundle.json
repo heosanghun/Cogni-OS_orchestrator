@@ -2,28 +2,22 @@
   "attempt": 6,
   "files": [
     {
-      "archive_path": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-006\\worker-2c8ee1e9f1f948d4\\files\\c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f_P01-TRUTH.md",
-      "kind": "report",
-      "retained": true,
-      "sha256": "c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f",
-      "size_bytes": 1768,
-      "source": "C:\\comunity\\reports\\antigravity\\P01-TRUTH.md"
-    },
-    {
-      "archive_path": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-006\\worker-2c8ee1e9f1f948d4\\files\\2c8ee1e9f1f948d4c806ba5531e4fce0d30e2a8d8ba6333fbe65616756b00d26_P01-TRUTH.evidence.json",
-      "kind": "manifest",
-      "retained": true,
-      "sha256": "2c8ee1e9f1f948d4c806ba5531e4fce0d30e2a8d8ba6333fbe65616756b00d26",
-      "size_bytes": 1080,
-      "source": "C:\\comunity\\reports\\antigravity\\P01-TRUTH.evidence.json"
-    },
-    {
+      "kind": "trusted_runner_output",
       "archive_path": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-006\\worker-2c8ee1e9f1f948d4\\files\\2b67402b8762fd30cbf3cf5572a33aaa2e3e1aa25849c987ac5fb2925920b2ae_P01-TRUTH_raw_output.txt",
-      "kind": "raw_output",
-      "retained": true,
       "sha256": "2b67402b8762fd30cbf3cf5572a33aaa2e3e1aa25849c987ac5fb2925920b2ae",
-      "size_bytes": 28,
-      "source": "C:\\comunity\\reports\\antigravity\\P01-TRUTH_raw_output.txt"
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-006\\worker-2c8ee1e9f1f948d4\\files\\2c8ee1e9f1f948d4c806ba5531e4fce0d30e2a8d8ba6333fbe65616756b00d26_P01-TRUTH.evidence.json",
+      "sha256": "2c8ee1e9f1f948d4c806ba5531e4fce0d30e2a8d8ba6333fbe65616756b00d26",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-006\\worker-2c8ee1e9f1f948d4\\files\\c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f_P01-TRUTH.md",
+      "sha256": "c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f",
+      "retained": true
     }
   ],
   "label": "worker",

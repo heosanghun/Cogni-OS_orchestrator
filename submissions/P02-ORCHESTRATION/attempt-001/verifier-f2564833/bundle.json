@@ -10,5 +10,43 @@
   "label": "verifier",
   "manifest_sha256": "f2564833c24af06aaf1e430e1312ed4896971ee6db98f4ab3155b929f34f306c",
   "schema_version": 1,
-  "task_id": "P02-ORCHESTRATION"
+  "task_id": "P02-ORCHESTRATION",
+  "files": [
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\verifier-f2564833\\files\\0c8c4d59_P02-ORCHESTRATION.verifier-repor",
+      "sha256": "0c8c4d59d01953c8cb7338b1aba616908a0efb78748be6ce406977482a8c13d3",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\verifier-f2564833\\files\\380cc568_P02-ORCHESTRATION_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\verifier-f2564833\\files\\380cc568_validation-000.log",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_receipt",
+      "archive_path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\verifier-f2564833\\files\\8e78f404_receipt.json",
+      "sha256": "8e78f40440c9976fb3c8e4377afa19850543cf861c666c3290b29bb98ac2ffd7",
+      "retained": true
+    },
+    {
+      "kind": "artifact",
+      "archive_path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\verifier-f2564833\\files\\f2564833_P02-ORCHESTRATION.verifier-evide",
+      "sha256": "f2564833c24af06aaf1e430e1312ed4896971ee6db98f4ab3155b929f34f306c",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\verifier-f2564833\\files\\f2564833_P02-ORCHESTRATION.verifier-evidence.json",
+      "sha256": "f2564833c24af06aaf1e430e1312ed4896971ee6db98f4ab3155b929f34f306c",
+      "retained": true
+    }
+  ]
 }
