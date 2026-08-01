@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P10-COGNIBOARD\\attempt-001\\worker-07a6566c\\files\\4175d182_P10-COGNIBOARD.md",
+      "sha256": "4175d18215259b52a204e57c84af9d075704a16303eeb302f9017b58732f2527"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P10-COGNIBOARD\\attempt-001\\worker-07a6566c",
+  "label": "worker",
+  "manifest_sha256": "07a6566c948e552b605deeeb96b531a685cf4425beaa4a21ca0b5b8f411a62c2",
+  "schema_version": 1,
+  "task_id": "P10-COGNIBOARD"
+}

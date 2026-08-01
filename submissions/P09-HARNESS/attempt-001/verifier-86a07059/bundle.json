@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P09-HARNESS\\attempt-001\\verifier-86a07059\\files\\d98047d5_P09-HARNESS.verifier-report.md",
+      "sha256": "d98047d585adda90411a00c1adda55a126b549a045794ba4cb83333ed3aef697"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P09-HARNESS\\attempt-001\\verifier-86a07059",
+  "label": "verifier",
+  "manifest_sha256": "86a070594f8803ddc5c33c9e3b0ad3b721d00169f77ae82759dd45e6f1ed391c",
+  "schema_version": 1,
+  "task_id": "P09-HARNESS"
+}

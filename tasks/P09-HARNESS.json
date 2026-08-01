@@ -98,10 +98,118 @@
     "submitted_at": "2026-08-01T02:15:51Z",
     "submitted_by": "antigravity"
   },
-  "revision": 4,
+  "revision": 5,
   "schema_version": 1,
-  "state": "submitted",
+  "state": "verified",
   "title": "Phase 9 - Governed Self-Harness",
-  "updated_at": "2026-08-01T02:15:51Z",
-  "verification": null
+  "updated_at": "2026-08-01T02:16:08Z",
+  "verification": {
+    "decision": "accept",
+    "independence": {
+      "independent": true,
+      "reasons": [],
+      "verifier": {
+        "actor": "antigravity-verifier",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-verifier-control",
+        "model_family": "google-verifier-family",
+        "schema_version": 1
+      },
+      "worker": {
+        "actor": "antigravity",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-executant",
+        "model_family": "google-antigravity",
+        "schema_version": 1
+      }
+    },
+    "note": "P09-HARNESS verified.",
+    "trusted_validation": {
+      "actor": "antigravity-verifier",
+      "attempt": 1,
+      "completed_at": "2026-08-01T02:16:08Z",
+      "cuda_visible_devices": "",
+      "environment_sha256": "86ec157f0a5e577fee3088409f72b4e445eee32ddcfe5cefb47d084e5980a459",
+      "failure": null,
+      "gpu_allowed": false,
+      "max_output_bytes": 4194304,
+      "network_allowed": false,
+      "network_enforcement": "offline-environment-and-loopback-proxy",
+      "operational_change_count": 0,
+      "operational_paths_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true,
+      "receipt_path": "C:\\comunity\\runs\\trusted-verifier\\P09-HARNESS\\attempt-001\\20260801T021557Z-ec8a4f49\\receipt.json",
+      "receipt_sha256": "5aa3fdc94f6e09355b72b3283ab6b1c58bad665bdaa4f54af515b8d036b6a42e",
+      "runner": "cogni-os-trusted-runner-v1",
+      "schema_version": 1,
+      "source_clean": true,
+      "source_commit": "a766a7197d86ee8a3ee38350d0937e20dc4ac7ba",
+      "source_postcheck_error": null,
+      "source_postcheck_passed": true,
+      "started_at": "2026-08-01T02:15:57Z",
+      "task_id": "P09-HARNESS",
+      "validations": [
+        {
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "command_policy": {
+            "code_path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+            "code_paths": [
+              {
+                "path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+                "sha256": "d9906f90166248bbd2239b4bcc941475281e8fe2e1a5e097c0c6ee356b52ae61"
+              }
+            ],
+            "executable_binding": "current-python-runtime",
+            "executable_path": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "executable_sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+            "executed_argv": [
+              "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+              "src/cogni_os/tests/run_tests.py"
+            ],
+            "kind": "python"
+          },
+          "completed_at": "2026-08-01T02:16:08Z",
+          "duration_ms": 11016.0,
+          "executable_sha256_after": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+          "executed_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "index": 0,
+          "output_path": "C:\\comunity\\runs\\trusted-verifier\\P09-HARNESS\\attempt-001\\20260801T021557Z-ec8a4f49\\validation-000.log",
+          "output_sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+          "output_size_bytes": 18,
+          "output_truncated": false,
+          "started_at": "2026-08-01T02:15:57Z",
+          "timed_out": false,
+          "timeout_seconds": 300
+        }
+      ]
+    },
+    "verified_at": "2026-08-01T02:16:08Z",
+    "verified_by": "antigravity-verifier",
+    "verifier_evidence": {
+      "bundle": {
+        "archived_artifacts": [
+          {
+            "path": "C:\\comunity\\submissions\\P09-HARNESS\\attempt-001\\verifier-86a07059\\files\\d98047d5_P09-HARNESS.verifier-report.md",
+            "sha256": "d98047d585adda90411a00c1adda55a126b549a045794ba4cb83333ed3aef697"
+          }
+        ],
+        "attempt": 1,
+        "bundle_dir": "C:\\comunity\\submissions\\P09-HARNESS\\attempt-001\\verifier-86a07059",
+        "label": "verifier",
+        "manifest_sha256": "86a070594f8803ddc5c33c9e3b0ad3b721d00169f77ae82759dd45e6f1ed391c",
+        "schema_version": 1,
+        "task_id": "P09-HARNESS"
+      },
+      "manifest_sha256": "86a070594f8803ddc5c33c9e3b0ad3b721d00169f77ae82759dd45e6f1ed391c"
+    }
+  }
 }
