@@ -9,7 +9,7 @@
     "START_HERE_KO.md",
     "wrangler.toml"
   ],
-  "attempt": 10,
+  "attempt": 11,
   "blocked_reason": null,
   "created_at": "2026-07-31T15:48:46Z",
   "created_by": "codex",
@@ -58,25 +58,27 @@
         }
       ],
       "manifest_path": "C:\\comunity\\reports\\antigravity\\P01-TRUTH.evidence.json",
-      "manifest_sha256": "c7b921a0c11bbcac0be21c319d15b6ff47cd867209e4f403b66a2f9d1eaba063",
+      "manifest_sha256": "6f43c3d4c3a7c9abf39657cbed45c16ef93dd2425426797ee222e5100e181c34",
       "totals": {
         "failed": 0,
-        "passed": 58,
+        "passed": 2,
         "skipped": 0
       },
       "validations": [
         {
-          "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+          "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe -m unittest cogni_os.tests.test_workspace",
           "command_argv": [
             "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
-            "src/cogni_os/tests/run_tests.py"
+            "-m",
+            "unittest",
+            "cogni_os.tests.test_workspace"
           ],
           "exit_code": 0,
           "failed": 0,
-          "passed": 58,
+          "passed": 2,
           "raw_output": {
             "path": "C:\\comunity\\reports\\antigravity\\P01-TRUTH_raw_output.txt",
-            "sha256": "2b67402b8762fd30cbf3cf5572a33aaa2e3e1aa25849c987ac5fb2925920b2ae"
+            "sha256": "6201e87cc43c8732883c94068dbe5334b0829113b83d0f757549c1ec1d564936"
           },
           "skipped": 0
         }
@@ -95,13 +97,13 @@
       ],
       "sha256": "c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f"
     },
-    "submitted_at": "2026-08-01T01:59:17Z",
+    "submitted_at": "2026-08-01T02:02:46Z",
     "submitted_by": "antigravity"
   },
-  "revision": 30,
+  "revision": 33,
   "schema_version": 1,
   "state": "submitted",
   "title": "Phase 1 - Release truth baseline",
-  "updated_at": "2026-08-01T01:59:17Z",
+  "updated_at": "2026-08-01T02:02:46Z",
   "verification": null
 }

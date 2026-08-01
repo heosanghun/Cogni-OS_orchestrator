@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-011\\worker-6f43c3d4\\files\\c4787ee8_P01-TRUTH.md",
+      "sha256": "c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f"
+    }
+  ],
+  "attempt": 11,
+  "bundle_dir": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-011\\worker-6f43c3d4",
+  "label": "worker",
+  "manifest_sha256": "6f43c3d4c3a7c9abf39657cbed45c16ef93dd2425426797ee222e5100e181c34",
+  "schema_version": 1,
+  "task_id": "P01-TRUTH"
+}
