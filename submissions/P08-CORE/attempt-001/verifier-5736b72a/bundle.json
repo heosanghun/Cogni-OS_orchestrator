@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P08-CORE\\attempt-001\\verifier-5736b72a\\files\\d9c31908_P08-CORE.verifier-report.md",
+      "sha256": "d9c319088eb5c4035737df6c4daea9ebaa4839f3475d87c42f52b16726a01597"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P08-CORE\\attempt-001\\verifier-5736b72a",
+  "label": "verifier",
+  "manifest_sha256": "5736b72aa9b2573b25dab3da0f18a108f211fd64fff2fae99299a8dac0161cb0",
+  "schema_version": 1,
+  "task_id": "P08-CORE"
+}
