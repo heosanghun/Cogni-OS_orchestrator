@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,8 @@ def _atomic_copy_verified(source: Path, destination: Path, expected_sha: str) ->
                 output.write(chunk)
             output.flush()
             os.fsync(output.fileno())
+
+        # Ensure file handle is strictly closed before inspection and replacement
         observed = sha256_file(temp_path)
         if observed != expected_sha:
             raise EvidenceError(
@@ -42,15 +45,19 @@ def _atomic_copy_verified(source: Path, destination: Path, expected_sha: str) ->
                 )
             temp_path.unlink()
             return
+
         destination.parent.mkdir(parents=True, exist_ok=True)
         try:
             os.replace(temp_path, destination)
         except OSError:
-            import shutil
-            shutil.move(str(temp_path), str(destination))
+            shutil.copy2(str(temp_path), str(destination))
+            temp_path.unlink()
     finally:
         if temp_path.exists():
-            temp_path.unlink()
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
 
 
 def archive_evidence_bundle(
@@ -64,110 +71,49 @@ def archive_evidence_bundle(
     max_artifact_bytes: int,
     extra_files: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Retain reports, manifests, and bounded artifacts under content hashes."""
-    if max_artifact_bytes < 0:
-        raise EvidenceError("max_artifact_bytes cannot be negative")
-    manifest_sha = manifest.get("sha256") or manifest.get("manifest_sha256") or "0"*64
-    bundle_id = f"{label}-{manifest_sha[:16]}"
-    destination = (
-        submissions_root / task_id / f"attempt-{attempt:03d}" / bundle_id
-    ).resolve()
-    files: list[tuple[Path, str, str, bool]] = []
+    """Archive a submission or verification evidence bundle immutably."""
+    bundle_dir = submissions_root / task_id / f"attempt-{attempt:03d}" / f"{label}-{manifest['manifest_sha256'][:16]}"
+    files_dir = bundle_dir / "files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+
+    archived_artifacts: list[dict[str, Any]] = []
+    manifest_dir = Path(manifest["manifest_path"]).parent.resolve()
+
     if report is not None:
-        files.append(
-            (
-                Path(report["path"]).resolve(),
-                report["sha256"],
-                "report",
-                True,
-            )
-        )
-    manifest_path = manifest.get("path") or manifest.get("manifest_path")
-    if manifest_path:
-        files.append(
-            (
-                Path(manifest_path).resolve(),
-                manifest_sha,
-                "manifest",
-                True,
-            )
-        )
+        report_src = Path(report["path"]).resolve()
+        report_dest = files_dir / f"{report['sha256']}_{_safe_name(report_src)}"
+        _atomic_copy_verified(report_src, report_dest, report["sha256"])
+
+    manifest_dest = files_dir / f"{manifest['manifest_sha256']}_{_safe_name(Path(manifest['manifest_path']))}"
+    _atomic_copy_verified(Path(manifest["manifest_path"]).resolve(), manifest_dest, manifest["manifest_sha256"])
+
     for artifact in manifest.get("artifacts", []):
-        files.append(
-            (
-                Path(artifact["path"]).resolve(),
-                artifact["sha256"],
-                "artifact",
-                False,
-            )
-        )
+        src = (manifest_dir / artifact["path"]).resolve()
+        dest = files_dir / f"{artifact['sha256']}_{_safe_name(src)}"
+        _atomic_copy_verified(src, dest, artifact["sha256"])
+        archived_artifacts.append({"path": str(dest.resolve()), "sha256": artifact["sha256"]})
+
     for validation in manifest.get("validations", []):
-        raw_output = validation.get("raw_output")
-        if raw_output:
-            files.append(
-                (
-                    Path(raw_output["path"]).resolve(),
-                    raw_output["sha256"],
-                    "raw_output",
-                    False,
-                )
-            )
-    for extra in extra_files or []:
-        files.append(
-            (
-                Path(extra["path"]).resolve(),
-                extra["sha256"],
-                str(extra.get("kind", "extra")),
-                bool(extra.get("force", True)),
-            )
-        )
+        raw = validation.get("raw_output")
+        if isinstance(raw, dict):
+            src = Path(raw["path"]).resolve()
+            dest = files_dir / f"{raw['sha256']}_{_safe_name(src)}"
+            _atomic_copy_verified(src, dest, raw["sha256"])
 
-    retained: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
-    for source, expected_sha, kind, force in files:
-        key = (str(source), expected_sha)
-        if key in seen:
-            continue
-        seen.add(key)
-        if not source.is_file():
-            raise EvidenceError(f"Evidence disappeared before archival: {source}")
-        size = source.stat().st_size
-        should_copy = force or size <= max_artifact_bytes
-        record: dict[str, Any] = {
-            "kind": kind,
-            "source": str(source),
-            "sha256": expected_sha,
-            "size_bytes": size,
-            "retained": should_copy,
-            "archive_path": None,
-        }
-        if should_copy:
-            relative = Path("files") / f"{expected_sha}_{_safe_name(source)}"
-            target = destination / relative
-            _atomic_copy_verified(source, target, expected_sha)
-            record["archive_path"] = str(target)
-        retained.append(record)
+    if extra_files:
+        for extra in extra_files:
+            src = Path(extra["path"]).resolve()
+            dest = files_dir / f"{extra['sha256']}_{_safe_name(src)}"
+            _atomic_copy_verified(src, dest, extra["sha256"])
 
-    bundle = {
+    bundle_record = {
         "schema_version": 1,
         "task_id": task_id,
         "attempt": attempt,
         "label": label,
-        "manifest_sha256": manifest_sha,
-        "max_artifact_bytes": max_artifact_bytes,
-        "files": retained,
+        "manifest_sha256": manifest["manifest_sha256"],
+        "bundle_dir": str(bundle_dir.resolve()),
+        "archived_artifacts": archived_artifacts,
     }
-    bundle_path = destination / "bundle.json"
-    atomic_write_json(bundle_path, bundle)
-    return {
-        "task_id": task_id,
-        "attempt": attempt,
-        "label": label,
-        "bundle_id": bundle_id,
-        "path": str(destination),
-        "manifest_path": str(bundle_path),
-        "manifest_sha256": sha256_file(bundle_path),
-        "files": retained,
-        "retained": sum(item["retained"] for item in retained),
-        "external": sum(not item["retained"] for item in retained),
-    }
+    atomic_write_json(bundle_dir / "bundle.json", bundle_record)
+    return bundle_record
