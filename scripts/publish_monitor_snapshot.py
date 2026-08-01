@@ -1171,7 +1171,6 @@ def main(argv: list[str] | None = None) -> int:
             "duplicate_instance_rejected",
             error=sanitize_error(error),
         )
-        print(f"monitor publisher not started: {error}", file=sys.stderr)
         # EX_TEMPFAIL keeps a supervised process eligible for restart after
         # the prior instance exits (for example, during a task replacement).
         return 75
