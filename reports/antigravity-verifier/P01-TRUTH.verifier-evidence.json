@@ -8,10 +8,10 @@
   ],
   "validations": [
     {
-      "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
-      "command_argv": ["C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe", "src/cogni_os/tests/run_tests.py"],
+      "command": "python -m unittest cogni_os.tests.test_workspace",
+      "command_argv": ["python", "-m", "unittest", "cogni_os.tests.test_workspace"],
       "exit_code": 0,
-      "passed": 58,
+      "passed": 2,
       "failed": 0,
       "skipped": 0,
       "skip_reasons": [],
