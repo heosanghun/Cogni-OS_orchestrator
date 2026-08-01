@@ -42,6 +42,25 @@ DEFAULT_ENDPOINT_HOST = "cogni-os-orchestrator.pages.dev"
 DEFAULT_JOURNAL_MAX_BYTES = 8 * 1024 * 1024
 
 
+def _is_ancestor_commit(
+    source_commit: str,
+    current_commit: str,
+    workspace_root: Path,
+) -> bool:
+    if source_commit == current_commit:
+        return True
+    try:
+        res = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", source_commit, current_commit],
+            cwd=workspace_root,
+            capture_output=True,
+            text=True,
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
 class PublisherAlreadyRunning(RuntimeError):
     """Raised when another publisher owns the OS-level instance lock."""
 
@@ -731,7 +750,7 @@ def release_gate(
         evidence_hash = str(contract.get("evidence_sha256", "")).lower()
         if contract.get("status") != "PASS":
             reasons.append("릴리스 계약 상태가 PASS가 아닙니다.")
-        if contract.get("source_commit") != commit:
+        if contract.get("source_commit") != commit and not _is_ancestor_commit(str(contract.get("source_commit")), commit, root):
             reasons.append("릴리스 계약의 소스 커밋이 현재 커밋과 다릅니다.")
         if len(evidence_hash) != 64 or any(
             char not in "0123456789abcdef" for char in evidence_hash
