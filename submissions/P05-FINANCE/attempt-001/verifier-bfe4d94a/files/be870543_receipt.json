@@ -1,0 +1,64 @@
+{
+  "actor": "antigravity-verifier",
+  "attempt": 1,
+  "completed_at": "2026-08-01T02:11:50Z",
+  "cuda_visible_devices": "",
+  "environment_sha256": "78e4936936c670448044ea27886b5ce76c556c93fe3727d181c1f72fb44583ea",
+  "failure": null,
+  "gpu_allowed": false,
+  "max_output_bytes": 4194304,
+  "network_allowed": false,
+  "network_enforcement": "offline-environment-and-loopback-proxy",
+  "operational_change_count": 0,
+  "operational_paths_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "passed": true,
+  "runner": "cogni-os-trusted-runner-v1",
+  "schema_version": 1,
+  "source_clean": true,
+  "source_commit": "f375e55cef0d3dc4e5dedffab1bc81eb15e2db93",
+  "source_postcheck_error": null,
+  "source_postcheck_passed": true,
+  "started_at": "2026-08-01T02:11:39Z",
+  "task_id": "P05-FINANCE",
+  "validations": [
+    {
+      "command_argv": [
+        "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+        "src/cogni_os/tests/run_tests.py"
+      ],
+      "command_policy": {
+        "code_path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+        "code_paths": [
+          {
+            "path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+            "sha256": "d9906f90166248bbd2239b4bcc941475281e8fe2e1a5e097c0c6ee356b52ae61"
+          }
+        ],
+        "executable_binding": "current-python-runtime",
+        "executable_path": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+        "executable_sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+        "executed_argv": [
+          "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+          "src/cogni_os/tests/run_tests.py"
+        ],
+        "kind": "python"
+      },
+      "completed_at": "2026-08-01T02:11:50Z",
+      "duration_ms": 11016.0,
+      "executable_sha256_after": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+      "executed_argv": [
+        "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+        "src/cogni_os/tests/run_tests.py"
+      ],
+      "exit_code": 0,
+      "index": 0,
+      "output_path": "C:\\comunity\\runs\\trusted-verifier\\P05-FINANCE\\attempt-001\\20260801T021139Z-be1fdd8d\\validation-000.log",
+      "output_sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "output_size_bytes": 18,
+      "output_truncated": false,
+      "started_at": "2026-08-01T02:11:39Z",
+      "timed_out": false,
+      "timeout_seconds": 300
+    }
+  ]
+}

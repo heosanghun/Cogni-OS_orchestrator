@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\verifier-bfe4d94a\\files\\e4f44024_P05-FINANCE.verifier-report.md",
+      "sha256": "e4f440247726e3a3bd441d5c46119f7bd55de36f4ab3227f57ee1ea26f2f233f"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\verifier-bfe4d94a",
+  "label": "verifier",
+  "manifest_sha256": "bfe4d94a6cb05315b9693037e7a38cb365c67f9fdc8fd715be7732b81e221feb",
+  "schema_version": 1,
+  "task_id": "P05-FINANCE"
+}

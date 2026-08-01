@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\worker-1fe021f7\\files\\d97c01b1_P06-TWIN.md",
+      "sha256": "d97c01b1fa86ae0043e597296a156f33bed0f5b3bf2af8fb40c58cfa53ec8269"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\worker-1fe021f7",
+  "label": "worker",
+  "manifest_sha256": "1fe021f7e195f668f7f201da55a874b8f6fdf840d33acd37c4920cf2a4bad3b7",
+  "schema_version": 1,
+  "task_id": "P06-TWIN"
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "path": "P06-TWIN.md",
+      "sha256": "d97c01b1fa86ae0043e597296a156f33bed0f5b3bf2af8fb40c58cfa53ec8269"
+    }
+  ],
+  "validations": [
+    {
+      "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+      "command_argv": ["C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe", "src/cogni_os/tests/run_tests.py"],
+      "exit_code": 0,
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0,
+      "skip_reasons": [],
+      "raw_output_path": "P06-TWIN_raw_output.txt",
+      "raw_output_sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7"
+    }
+  ],
+  "known_answer_checks": [
+    {
+      "name": "P06_Twin_Verification",
+      "expected": "agentic_twin_established",
+      "observed": "agentic_twin_established",
+      "passed": true
+    }
+  ],
+  "claims": [
+    {
+      "name": "phase6_agentic_twin",
+      "kind": "functional",
+      "measured": true,
+      "value": "pass",
+      "evidence": ["P06-TWIN.md"]
+    }
+  ]
+}
