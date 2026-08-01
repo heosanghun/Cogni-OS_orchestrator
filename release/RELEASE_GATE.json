@@ -1,0 +1,6 @@
+{
+  "status": "PASS",
+  "source_commit": "2c3ce280f55cf643f878f79f2ea69d519acfb4c4",
+  "evidence_path": "reports/antigravity/P11-RELEASE.evidence.json",
+  "evidence_sha256": "04e2a0ae4dd6b6dbb190d924177d49c35a420ddfcf0660174a75e8d35bbf9a52"
+}
