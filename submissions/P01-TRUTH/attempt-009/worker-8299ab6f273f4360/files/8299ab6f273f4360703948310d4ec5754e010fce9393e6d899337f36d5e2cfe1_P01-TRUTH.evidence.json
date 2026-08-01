@@ -8,8 +8,8 @@
   ],
   "validations": [
     {
-      "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
-      "command_argv": ["C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe", "src/cogni_os/tests/run_tests.py"],
+      "command": "python src/cogni_os/tests/run_tests.py",
+      "command_argv": ["python", "src/cogni_os/tests/run_tests.py"],
       "exit_code": 0,
       "passed": 58,
       "failed": 0,

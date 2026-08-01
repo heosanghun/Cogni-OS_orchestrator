@@ -9,7 +9,7 @@
     "START_HERE_KO.md",
     "wrangler.toml"
   ],
-  "attempt": 8,
+  "attempt": 9,
   "blocked_reason": null,
   "created_at": "2026-07-31T15:48:46Z",
   "created_by": "codex",
@@ -58,7 +58,7 @@
         }
       ],
       "manifest_path": "C:\\comunity\\reports\\antigravity\\P01-TRUTH.evidence.json",
-      "manifest_sha256": "c7b921a0c11bbcac0be21c319d15b6ff47cd867209e4f403b66a2f9d1eaba063",
+      "manifest_sha256": "8299ab6f273f4360703948310d4ec5754e010fce9393e6d899337f36d5e2cfe1",
       "totals": {
         "failed": 0,
         "passed": 58,
@@ -66,9 +66,9 @@
       },
       "validations": [
         {
-          "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+          "command": "python src/cogni_os/tests/run_tests.py",
           "command_argv": [
-            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "python",
             "src/cogni_os/tests/run_tests.py"
           ],
           "exit_code": 0,
@@ -95,13 +95,13 @@
       ],
       "sha256": "c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f"
     },
-    "submitted_at": "2026-08-01T01:57:29Z",
+    "submitted_at": "2026-08-01T01:58:47Z",
     "submitted_by": "antigravity"
   },
-  "revision": 24,
+  "revision": 27,
   "schema_version": 1,
   "state": "submitted",
   "title": "Phase 1 - Release truth baseline",
-  "updated_at": "2026-08-01T01:57:29Z",
+  "updated_at": "2026-08-01T01:58:47Z",
   "verification": null
 }
