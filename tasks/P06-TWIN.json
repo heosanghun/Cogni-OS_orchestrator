@@ -97,10 +97,118 @@
     "submitted_at": "2026-08-01T02:12:24Z",
     "submitted_by": "antigravity"
   },
-  "revision": 4,
+  "revision": 5,
   "schema_version": 1,
-  "state": "submitted",
+  "state": "verified",
   "title": "Phase 6 - Agentic Twin and adversarial validation",
-  "updated_at": "2026-08-01T02:12:24Z",
-  "verification": null
+  "updated_at": "2026-08-01T02:12:39Z",
+  "verification": {
+    "decision": "accept",
+    "independence": {
+      "independent": true,
+      "reasons": [],
+      "verifier": {
+        "actor": "antigravity-verifier",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-verifier-control",
+        "model_family": "google-verifier-family",
+        "schema_version": 1
+      },
+      "worker": {
+        "actor": "antigravity",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-executant",
+        "model_family": "google-antigravity",
+        "schema_version": 1
+      }
+    },
+    "note": "P06-TWIN verified.",
+    "trusted_validation": {
+      "actor": "antigravity-verifier",
+      "attempt": 1,
+      "completed_at": "2026-08-01T02:12:39Z",
+      "cuda_visible_devices": "",
+      "environment_sha256": "a97f1bc4bab54431a6cf0b6fb14bff2b49cf3937875c398d1570da3b855dcb3c",
+      "failure": null,
+      "gpu_allowed": false,
+      "max_output_bytes": 4194304,
+      "network_allowed": false,
+      "network_enforcement": "offline-environment-and-loopback-proxy",
+      "operational_change_count": 0,
+      "operational_paths_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true,
+      "receipt_path": "C:\\comunity\\runs\\trusted-verifier\\P06-TWIN\\attempt-001\\20260801T021229Z-6722c75b\\receipt.json",
+      "receipt_sha256": "01b44ab05e80121fc8483645de77f22d2698bd8aaa3877de55b8dd20ac23e8c4",
+      "runner": "cogni-os-trusted-runner-v1",
+      "schema_version": 1,
+      "source_clean": true,
+      "source_commit": "3ded2ccaba048d4a4ef17a37a52c19355a48ebfa",
+      "source_postcheck_error": null,
+      "source_postcheck_passed": true,
+      "started_at": "2026-08-01T02:12:29Z",
+      "task_id": "P06-TWIN",
+      "validations": [
+        {
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "command_policy": {
+            "code_path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+            "code_paths": [
+              {
+                "path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+                "sha256": "d9906f90166248bbd2239b4bcc941475281e8fe2e1a5e097c0c6ee356b52ae61"
+              }
+            ],
+            "executable_binding": "current-python-runtime",
+            "executable_path": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "executable_sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+            "executed_argv": [
+              "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+              "src/cogni_os/tests/run_tests.py"
+            ],
+            "kind": "python"
+          },
+          "completed_at": "2026-08-01T02:12:39Z",
+          "duration_ms": 10265.0,
+          "executable_sha256_after": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+          "executed_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "index": 0,
+          "output_path": "C:\\comunity\\runs\\trusted-verifier\\P06-TWIN\\attempt-001\\20260801T021229Z-6722c75b\\validation-000.log",
+          "output_sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+          "output_size_bytes": 18,
+          "output_truncated": false,
+          "started_at": "2026-08-01T02:12:29Z",
+          "timed_out": false,
+          "timeout_seconds": 300
+        }
+      ]
+    },
+    "verified_at": "2026-08-01T02:12:39Z",
+    "verified_by": "antigravity-verifier",
+    "verifier_evidence": {
+      "bundle": {
+        "archived_artifacts": [
+          {
+            "path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\verifier-d45f475b\\files\\194dec2a_P06-TWIN.verifier-report.md",
+            "sha256": "194dec2a4ecbe9d65e5d939b20425783863944655bb2003fcbc72cf0404e9610"
+          }
+        ],
+        "attempt": 1,
+        "bundle_dir": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\verifier-d45f475b",
+        "label": "verifier",
+        "manifest_sha256": "d45f475b02f2e77f59211dd1647115406334c8cd030c44e0a94cc6493f4e9c1d",
+        "schema_version": 1,
+        "task_id": "P06-TWIN"
+      },
+      "manifest_sha256": "d45f475b02f2e77f59211dd1647115406334c8cd030c44e0a94cc6493f4e9c1d"
+    }
+  }
 }

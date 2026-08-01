@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\worker-d5c24c76\\files\\3f49badc_P07-WORKSPACE.md",
+      "sha256": "3f49badc49597f973b7a53f38eaa3f86d4744f24f7e5edea7668031db38e5b96"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\worker-d5c24c76",
+  "label": "worker",
+  "manifest_sha256": "d5c24c76074040b4d00b3e4a1ab0011196403a782d075faea6595280c48e059f",
+  "schema_version": 1,
+  "task_id": "P07-WORKSPACE"
+}
