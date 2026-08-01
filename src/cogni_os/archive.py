@@ -42,7 +42,12 @@ def _atomic_copy_verified(source: Path, destination: Path, expected_sha: str) ->
                 )
             temp_path.unlink()
             return
-        os.replace(temp_path, destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.replace(temp_path, destination)
+        except OSError:
+            import shutil
+            shutil.move(str(temp_path), str(destination))
     finally:
         if temp_path.exists():
             temp_path.unlink()
