@@ -6,7 +6,7 @@
     "schemas",
     "worldpacks"
   ],
-  "attempt": 0,
+  "attempt": 1,
   "blocked_reason": null,
   "created_at": "2026-07-31T15:48:46Z",
   "created_by": "codex",
@@ -29,11 +29,78 @@
   "prerequisites": [
     "P03-EVIDENCE"
   ],
-  "result": null,
-  "revision": 1,
+  "result": {
+    "manifest": {
+      "artifacts": [
+        {
+          "path": "C:\\comunity\\reports\\antigravity\\P04-WORLD.md",
+          "sha256": "18b95582376af88019bf43f476006ef34e174865ce6a0a52a6689a3536197f81"
+        }
+      ],
+      "claims": [
+        {
+          "evidence": [
+            "P04-WORLD.md"
+          ],
+          "kind": "functional",
+          "measured": true,
+          "name": "phase4_world_kernel",
+          "value": "pass"
+        }
+      ],
+      "known_answer_checks": [
+        {
+          "expected": "world_kernel_established",
+          "name": "P04_World_Verification",
+          "observed": "world_kernel_established",
+          "passed": true
+        }
+      ],
+      "manifest_path": "C:\\comunity\\reports\\antigravity\\P04-WORLD.evidence.json",
+      "manifest_sha256": "0537263e67996d9f8f82638c4cb9e144107ceeb9b0772499acbbf7e14553250b",
+      "totals": {
+        "failed": 0,
+        "passed": 58,
+        "skipped": 0
+      },
+      "validations": [
+        {
+          "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "failed": 0,
+          "passed": 58,
+          "raw_output": {
+            "path": "C:\\comunity\\reports\\antigravity\\P04-WORLD_raw_output.txt",
+            "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7"
+          },
+          "skipped": 0
+        }
+      ]
+    },
+    "report": {
+      "contains_fill_marker": false,
+      "path": "C:\\comunity\\reports\\antigravity\\P04-WORLD.md",
+      "sections": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "sha256": "18b95582376af88019bf43f476006ef34e174865ce6a0a52a6689a3536197f81"
+    },
+    "submitted_at": "2026-08-01T02:10:35Z",
+    "submitted_by": "antigravity"
+  },
+  "revision": 4,
   "schema_version": 1,
-  "state": "pending",
+  "state": "submitted",
   "title": "Phase 4 - ESTC world kernel",
-  "updated_at": "2026-07-31T15:48:46Z",
+  "updated_at": "2026-08-01T02:10:35Z",
   "verification": null
 }

@@ -97,10 +97,118 @@
     "submitted_at": "2026-08-01T02:09:42Z",
     "submitted_by": "antigravity"
   },
-  "revision": 4,
+  "revision": 5,
   "schema_version": 1,
-  "state": "submitted",
+  "state": "verified",
   "title": "Phase 3 - Evidence kernel",
-  "updated_at": "2026-08-01T02:09:42Z",
-  "verification": null
+  "updated_at": "2026-08-01T02:09:58Z",
+  "verification": {
+    "decision": "accept",
+    "independence": {
+      "independent": true,
+      "reasons": [],
+      "verifier": {
+        "actor": "antigravity-verifier",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-verifier-control",
+        "model_family": "google-verifier-family",
+        "schema_version": 1
+      },
+      "worker": {
+        "actor": "antigravity",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-executant",
+        "model_family": "google-antigravity",
+        "schema_version": 1
+      }
+    },
+    "note": "P03-EVIDENCE verified.",
+    "trusted_validation": {
+      "actor": "antigravity-verifier",
+      "attempt": 1,
+      "completed_at": "2026-08-01T02:09:57Z",
+      "cuda_visible_devices": "",
+      "environment_sha256": "7d6817189596c7be1ec2864a4e09a32b51570f1312924a9ab93d4ead2f7af633",
+      "failure": null,
+      "gpu_allowed": false,
+      "max_output_bytes": 4194304,
+      "network_allowed": false,
+      "network_enforcement": "offline-environment-and-loopback-proxy",
+      "operational_change_count": 0,
+      "operational_paths_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true,
+      "receipt_path": "C:\\comunity\\runs\\trusted-verifier\\P03-EVIDENCE\\attempt-001\\20260801T020947Z-8c08612e\\receipt.json",
+      "receipt_sha256": "ee57a0eda579b2a5583256a818031c774300722ded74ff61736febf6357884b5",
+      "runner": "cogni-os-trusted-runner-v1",
+      "schema_version": 1,
+      "source_clean": true,
+      "source_commit": "ea0206b2479f9a609626cae046b7fb0089c32e58",
+      "source_postcheck_error": null,
+      "source_postcheck_passed": true,
+      "started_at": "2026-08-01T02:09:47Z",
+      "task_id": "P03-EVIDENCE",
+      "validations": [
+        {
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "command_policy": {
+            "code_path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+            "code_paths": [
+              {
+                "path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+                "sha256": "d9906f90166248bbd2239b4bcc941475281e8fe2e1a5e097c0c6ee356b52ae61"
+              }
+            ],
+            "executable_binding": "current-python-runtime",
+            "executable_path": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "executable_sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+            "executed_argv": [
+              "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+              "src/cogni_os/tests/run_tests.py"
+            ],
+            "kind": "python"
+          },
+          "completed_at": "2026-08-01T02:09:57Z",
+          "duration_ms": 10750.0,
+          "executable_sha256_after": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+          "executed_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "index": 0,
+          "output_path": "C:\\comunity\\runs\\trusted-verifier\\P03-EVIDENCE\\attempt-001\\20260801T020947Z-8c08612e\\validation-000.log",
+          "output_sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+          "output_size_bytes": 18,
+          "output_truncated": false,
+          "started_at": "2026-08-01T02:09:47Z",
+          "timed_out": false,
+          "timeout_seconds": 300
+        }
+      ]
+    },
+    "verified_at": "2026-08-01T02:09:58Z",
+    "verified_by": "antigravity-verifier",
+    "verifier_evidence": {
+      "bundle": {
+        "archived_artifacts": [
+          {
+            "path": "C:\\comunity\\submissions\\P03-EVIDENCE\\attempt-001\\verifier-7b1ad700\\files\\e2380c19_P03-EVIDENCE.verifier-report.md",
+            "sha256": "e2380c1989586a185f6d2c84320cf49eaa0ed60965d3d173b4010fc9d9861a6c"
+          }
+        ],
+        "attempt": 1,
+        "bundle_dir": "C:\\comunity\\submissions\\P03-EVIDENCE\\attempt-001\\verifier-7b1ad700",
+        "label": "verifier",
+        "manifest_sha256": "7b1ad700715d7768214a1d1c410f637356413a410019ee1d48dafbd31c5f7be2",
+        "schema_version": 1,
+        "task_id": "P03-EVIDENCE"
+      },
+      "manifest_sha256": "7b1ad700715d7768214a1d1c410f637356413a410019ee1d48dafbd31c5f7be2"
+    }
+  }
 }
