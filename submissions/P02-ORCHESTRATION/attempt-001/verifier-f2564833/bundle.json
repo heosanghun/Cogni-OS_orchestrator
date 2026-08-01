@@ -1,0 +1,14 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\verifier-f2564833\\files\\0c8c4d59_P02-ORCHESTRATION.verifier-repor",
+      "sha256": "0c8c4d59d01953c8cb7338b1aba616908a0efb78748be6ce406977482a8c13d3"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\verifier-f2564833",
+  "label": "verifier",
+  "manifest_sha256": "f2564833c24af06aaf1e430e1312ed4896971ee6db98f4ab3155b929f34f306c",
+  "schema_version": 1,
+  "task_id": "P02-ORCHESTRATION"
+}
