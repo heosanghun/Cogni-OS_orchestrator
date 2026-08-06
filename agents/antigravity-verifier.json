@@ -6,7 +6,7 @@
     "alias_chain": [],
     "alias_of": null,
     "control_principal": "antigravity-verifier-control",
-    "model_family": "google-antigravity-verifier",
+    "model_family": "google-verifier-family",
     "schema_version": 1
   },
   "mode": "manual",

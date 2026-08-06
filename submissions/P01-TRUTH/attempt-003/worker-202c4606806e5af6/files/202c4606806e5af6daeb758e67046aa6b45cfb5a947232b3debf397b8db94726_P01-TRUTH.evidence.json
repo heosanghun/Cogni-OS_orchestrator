@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "path": "P01-TRUTH.md",
+      "sha256": "c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f"
+    }
+  ],
+  "validations": [
+    {
+      "command": "python -m unittest discover -s src/cogni_os/tests",
+      "exit_code": 0,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "skip_reasons": [],
+      "raw_output_path": "P01-TRUTH_raw_output.txt",
+      "raw_output_sha256": "180e92b6c5c8e14273c67417852cd3ae59baabc57c349ac86d19093935dbe865"
+    }
+  ],
+  "known_answer_checks": [
+    {
+      "name": "P01_Baseline_Verification",
+      "expected": "truth_established",
+      "observed": "truth_established",
+      "passed": true
+    }
+  ],
+  "claims": [
+    {
+      "name": "phase1_truth_baseline",
+      "kind": "functional",
+      "measured": true,
+      "value": "pass",
+      "evidence": ["P01-TRUTH.md"]
+    }
+  ]
+}

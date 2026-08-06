@@ -1,0 +1,46 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd\\files\\4c21d32f_P04-WORLD.verifier-report.md",
+      "sha256": "4c21d32f0f35aaf04760a3e16d7a9077a73a7a9f1e59467216203a7c0aa4e5be"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd",
+  "label": "verifier",
+  "manifest_sha256": "bf0178bdcc1d7a3a8d4a1d1427a24911495fd12c95aff13d58c3796d441830b5",
+  "schema_version": 1,
+  "task_id": "P04-WORLD",
+  "files": [
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd\\files\\380cc568_P04-WORLD_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd\\files\\380cc568_validation-000.log",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd\\files\\4c21d32f_P04-WORLD.verifier-report.md",
+      "sha256": "4c21d32f0f35aaf04760a3e16d7a9077a73a7a9f1e59467216203a7c0aa4e5be",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_receipt",
+      "archive_path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd\\files\\74b971ea_receipt.json",
+      "sha256": "74b971eaded2e8cccdc0127b4dd819646c10871e30c29d8801813a6eaa37d016",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd\\files\\bf0178bd_P04-WORLD.verifier-evidence.json",
+      "sha256": "bf0178bdcc1d7a3a8d4a1d1427a24911495fd12c95aff13d58c3796d441830b5",
+      "retained": true
+    }
+  ]
+}

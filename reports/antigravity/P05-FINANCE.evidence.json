@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "path": "P05-FINANCE.md",
+      "sha256": "268fbe7e59d8d101e89308b8a7cf3222f53677e2b0a4a8bb3d911491bc072a1c"
+    }
+  ],
+  "validations": [
+    {
+      "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+      "command_argv": ["C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe", "src/cogni_os/tests/run_tests.py"],
+      "exit_code": 0,
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0,
+      "skip_reasons": [],
+      "raw_output_path": "P05-FINANCE_raw_output.txt",
+      "raw_output_sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7"
+    }
+  ],
+  "known_answer_checks": [
+    {
+      "name": "P05_Finance_Verification",
+      "expected": "finance_worldpack_established",
+      "observed": "finance_worldpack_established",
+      "passed": true
+    }
+  ],
+  "claims": [
+    {
+      "name": "phase5_finance_worldpack",
+      "kind": "functional",
+      "measured": true,
+      "value": "pass",
+      "evidence": ["P05-FINANCE.md"]
+    }
+  ]
+}

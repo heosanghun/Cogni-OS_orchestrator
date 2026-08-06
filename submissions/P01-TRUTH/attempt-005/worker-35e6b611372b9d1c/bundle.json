@@ -1,0 +1,28 @@
+{
+  "attempt": 5,
+  "files": [
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-005\\worker-35e6b611372b9d1c\\files\\2b67402b8762fd30cbf3cf5572a33aaa2e3e1aa25849c987ac5fb2925920b2ae_P01-TRUTH_raw_output.txt",
+      "sha256": "2b67402b8762fd30cbf3cf5572a33aaa2e3e1aa25849c987ac5fb2925920b2ae",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-005\\worker-35e6b611372b9d1c\\files\\35e6b611372b9d1c7f323b17094b38d108dc6b5e6109c6dfb4806fca69c10612_P01-TRUTH.evidence.json",
+      "sha256": "35e6b611372b9d1c7f323b17094b38d108dc6b5e6109c6dfb4806fca69c10612",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P01-TRUTH\\attempt-005\\worker-35e6b611372b9d1c\\files\\c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f_P01-TRUTH.md",
+      "sha256": "c4787ee8c92f99377eb34f0a98f3c104e7f1183234efec52ac9b407c2883664f",
+      "retained": true
+    }
+  ],
+  "label": "worker",
+  "manifest_sha256": "35e6b611372b9d1c7f323b17094b38d108dc6b5e6109c6dfb4806fca69c10612",
+  "max_artifact_bytes": 52428800,
+  "schema_version": 1,
+  "task_id": "P01-TRUTH"
+}

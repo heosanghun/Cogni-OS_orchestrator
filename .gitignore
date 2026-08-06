@@ -13,6 +13,7 @@ __pycache__/
 .env.*
 .wrangler/
 .runtime/
+release/RELEASE_GATE.json
 tests/web/server-*.log
 tests/web/server-*.err
 

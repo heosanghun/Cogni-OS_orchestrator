@@ -1,0 +1,46 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\verifier-a14ee82f\\files\\5c4d9ffa_P07-WORKSPACE.verifier-report.md",
+      "sha256": "5c4d9ffa7908c80de92407dfebea4d0f9beb1dcb7352a2e99405eee321bcac9c"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\verifier-a14ee82f",
+  "label": "verifier",
+  "manifest_sha256": "a14ee82fbd515677df6152d837f3ec8c3ff587d0b80aa4fdb4fec35ca8000c45",
+  "schema_version": 1,
+  "task_id": "P07-WORKSPACE",
+  "files": [
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\verifier-a14ee82f\\files\\380cc568_P07-WORKSPACE_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\verifier-a14ee82f\\files\\380cc568_validation-000.log",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\verifier-a14ee82f\\files\\5c4d9ffa_P07-WORKSPACE.verifier-report.md",
+      "sha256": "5c4d9ffa7908c80de92407dfebea4d0f9beb1dcb7352a2e99405eee321bcac9c",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_receipt",
+      "archive_path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\verifier-a14ee82f\\files\\95d14f92_receipt.json",
+      "sha256": "95d14f9208872c5b2ac288867f866c2c12245f4361d170b9cece449466910c49",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\verifier-a14ee82f\\files\\a14ee82f_P07-WORKSPACE.verifier-evidence.json",
+      "sha256": "a14ee82fbd515677df6152d837f3ec8c3ff587d0b80aa4fdb4fec35ca8000c45",
+      "retained": true
+    }
+  ]
+}

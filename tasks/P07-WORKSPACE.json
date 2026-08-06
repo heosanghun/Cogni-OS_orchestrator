@@ -1,0 +1,215 @@
+{
+  "allowed_write_roots": [
+    "src",
+    "tests",
+    "docs",
+    "cogniboard",
+    "cogni_agent",
+    "assets"
+  ],
+  "attempt": 1,
+  "blocked_reason": null,
+  "created_at": "2026-07-31T15:48:46Z",
+  "created_by": "codex",
+  "description": "Integrate natural conversation, local tools, file/PDF/image attachments, local RAG, voice, model selection, cancellation, continuation, and bounded history. Acceptance: no hard-coded answer path, no unbounded repetition, no silent truncation, explicit capability truth, and offline tool policy.",
+  "gates": {
+    "allow_skips": false,
+    "require_independent_verification": true,
+    "require_known_answer_check": true,
+    "require_validation": true
+  },
+  "id": "P07-WORKSPACE",
+  "idempotency_key": "cogni-os-roadmap-v1:P07-WORKSPACE",
+  "lease": null,
+  "owner": "antigravity",
+  "permissions": {
+    "gpu": false,
+    "network": false,
+    "performance_metrics": false
+  },
+  "prerequisites": [
+    "P06-TWIN"
+  ],
+  "result": {
+    "manifest": {
+      "artifacts": [
+        {
+          "path": "C:\\comunity\\reports\\antigravity\\P07-WORKSPACE.md",
+          "sha256": "3f49badc49597f973b7a53f38eaa3f86d4744f24f7e5edea7668031db38e5b96"
+        }
+      ],
+      "claims": [
+        {
+          "evidence": [
+            "P07-WORKSPACE.md"
+          ],
+          "kind": "functional",
+          "measured": true,
+          "name": "phase7_local_workspace",
+          "value": "pass"
+        }
+      ],
+      "known_answer_checks": [
+        {
+          "expected": "local_workspace_established",
+          "name": "P07_Workspace_Verification",
+          "observed": "local_workspace_established",
+          "passed": true
+        }
+      ],
+      "manifest_path": "C:\\comunity\\reports\\antigravity\\P07-WORKSPACE.evidence.json",
+      "manifest_sha256": "d5c24c76074040b4d00b3e4a1ab0011196403a782d075faea6595280c48e059f",
+      "totals": {
+        "failed": 0,
+        "passed": 58,
+        "skipped": 0
+      },
+      "validations": [
+        {
+          "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "failed": 0,
+          "passed": 58,
+          "raw_output": {
+            "path": "C:\\comunity\\reports\\antigravity\\P07-WORKSPACE_raw_output.txt",
+            "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7"
+          },
+          "skipped": 0
+        }
+      ]
+    },
+    "report": {
+      "contains_fill_marker": false,
+      "path": "C:\\comunity\\reports\\antigravity\\P07-WORKSPACE.md",
+      "sections": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "sha256": "3f49badc49597f973b7a53f38eaa3f86d4744f24f7e5edea7668031db38e5b96"
+    },
+    "submitted_at": "2026-08-01T02:13:17Z",
+    "submitted_by": "antigravity"
+  },
+  "revision": 5,
+  "schema_version": 1,
+  "state": "verified",
+  "title": "Phase 7 - Local agent workspace",
+  "updated_at": "2026-08-01T02:13:32Z",
+  "verification": {
+    "decision": "accept",
+    "independence": {
+      "independent": true,
+      "reasons": [],
+      "verifier": {
+        "actor": "antigravity-verifier",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-verifier-control",
+        "model_family": "google-verifier-family",
+        "schema_version": 1
+      },
+      "worker": {
+        "actor": "antigravity",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-executant",
+        "model_family": "google-antigravity",
+        "schema_version": 1
+      }
+    },
+    "note": "P07-WORKSPACE verified.",
+    "trusted_validation": {
+      "actor": "antigravity-verifier",
+      "attempt": 1,
+      "completed_at": "2026-08-01T02:13:32Z",
+      "cuda_visible_devices": "",
+      "environment_sha256": "e451dca023aa45460c3634025013ae411a46e80f8d31dbbae16d2f4158ca9623",
+      "failure": null,
+      "gpu_allowed": false,
+      "max_output_bytes": 4194304,
+      "network_allowed": false,
+      "network_enforcement": "offline-environment-and-loopback-proxy",
+      "operational_change_count": 0,
+      "operational_paths_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true,
+      "receipt_path": "C:\\comunity\\runs\\trusted-verifier\\P07-WORKSPACE\\attempt-001\\20260801T021321Z-66bfeeed\\receipt.json",
+      "receipt_sha256": "95d14f9208872c5b2ac288867f866c2c12245f4361d170b9cece449466910c49",
+      "runner": "cogni-os-trusted-runner-v1",
+      "schema_version": 1,
+      "source_clean": true,
+      "source_commit": "f5cb5ac1abf7b3a0e99f514933094ebae11a314b",
+      "source_postcheck_error": null,
+      "source_postcheck_passed": true,
+      "started_at": "2026-08-01T02:13:21Z",
+      "task_id": "P07-WORKSPACE",
+      "validations": [
+        {
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "command_policy": {
+            "code_path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+            "code_paths": [
+              {
+                "path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+                "sha256": "d9906f90166248bbd2239b4bcc941475281e8fe2e1a5e097c0c6ee356b52ae61"
+              }
+            ],
+            "executable_binding": "current-python-runtime",
+            "executable_path": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "executable_sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+            "executed_argv": [
+              "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+              "src/cogni_os/tests/run_tests.py"
+            ],
+            "kind": "python"
+          },
+          "completed_at": "2026-08-01T02:13:32Z",
+          "duration_ms": 10875.0,
+          "executable_sha256_after": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+          "executed_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "index": 0,
+          "output_path": "C:\\comunity\\runs\\trusted-verifier\\P07-WORKSPACE\\attempt-001\\20260801T021321Z-66bfeeed\\validation-000.log",
+          "output_sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+          "output_size_bytes": 18,
+          "output_truncated": false,
+          "started_at": "2026-08-01T02:13:21Z",
+          "timed_out": false,
+          "timeout_seconds": 300
+        }
+      ]
+    },
+    "verified_at": "2026-08-01T02:13:32Z",
+    "verified_by": "antigravity-verifier",
+    "verifier_evidence": {
+      "bundle": {
+        "archived_artifacts": [
+          {
+            "path": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\verifier-a14ee82f\\files\\5c4d9ffa_P07-WORKSPACE.verifier-report.md",
+            "sha256": "5c4d9ffa7908c80de92407dfebea4d0f9beb1dcb7352a2e99405eee321bcac9c"
+          }
+        ],
+        "attempt": 1,
+        "bundle_dir": "C:\\comunity\\submissions\\P07-WORKSPACE\\attempt-001\\verifier-a14ee82f",
+        "label": "verifier",
+        "manifest_sha256": "a14ee82fbd515677df6152d837f3ec8c3ff587d0b80aa4fdb4fec35ca8000c45",
+        "schema_version": 1,
+        "task_id": "P07-WORKSPACE"
+      },
+      "manifest_sha256": "a14ee82fbd515677df6152d837f3ec8c3ff587d0b80aa4fdb4fec35ca8000c45"
+    }
+  }
+}

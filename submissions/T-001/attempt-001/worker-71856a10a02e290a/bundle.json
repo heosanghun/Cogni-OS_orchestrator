@@ -2,20 +2,16 @@
   "attempt": 1,
   "files": [
     {
-      "archive_path": "C:\\comunity\\submissions\\T-001\\attempt-001\\worker-71856a10a02e290a\\files\\b081dfa07beffd499bea33d5164b6373b09c2c24dd3351490f3be6fc598fdfca_T-001.md",
-      "kind": "report",
-      "retained": true,
-      "sha256": "b081dfa07beffd499bea33d5164b6373b09c2c24dd3351490f3be6fc598fdfca",
-      "size_bytes": 2340,
-      "source": "C:\\comunity\\reports\\antigravity\\T-001.md"
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\T-001\\attempt-001\\worker-71856a10a02e290a\\files\\71856a10a02e290afbc53ecf432492cc96e98b434c1754cfa0aa38d4f6eb0783_T-001.evidence.json",
+      "sha256": "71856a10a02e290afbc53ecf432492cc96e98b434c1754cfa0aa38d4f6eb0783",
+      "retained": true
     },
     {
-      "archive_path": "C:\\comunity\\submissions\\T-001\\attempt-001\\worker-71856a10a02e290a\\files\\71856a10a02e290afbc53ecf432492cc96e98b434c1754cfa0aa38d4f6eb0783_T-001.evidence.json",
-      "kind": "manifest",
-      "retained": true,
-      "sha256": "71856a10a02e290afbc53ecf432492cc96e98b434c1754cfa0aa38d4f6eb0783",
-      "size_bytes": 860,
-      "source": "C:\\comunity\\reports\\antigravity\\T-001.evidence.json"
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\T-001\\attempt-001\\worker-71856a10a02e290a\\files\\b081dfa07beffd499bea33d5164b6373b09c2c24dd3351490f3be6fc598fdfca_T-001.md",
+      "sha256": "b081dfa07beffd499bea33d5164b6373b09c2c24dd3351490f3be6fc598fdfca",
+      "retained": true
     }
   ],
   "label": "worker",

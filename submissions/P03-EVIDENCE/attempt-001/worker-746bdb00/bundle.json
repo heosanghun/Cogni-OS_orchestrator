@@ -1,0 +1,34 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P03-EVIDENCE\\attempt-001\\worker-746bdb00\\files\\a2273b83_P03-EVIDENCE.md",
+      "sha256": "a2273b836c84b7e8149dcb44af9e0218f0f5dd0ed3b7faf231ed1be6e55b0b8b"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P03-EVIDENCE\\attempt-001\\worker-746bdb00",
+  "label": "worker",
+  "manifest_sha256": "746bdb004fc78f383f00280ba895b83d7711dcf010e449cfd50e69bc9e26a3f4",
+  "schema_version": 1,
+  "task_id": "P03-EVIDENCE",
+  "files": [
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P03-EVIDENCE\\attempt-001\\worker-746bdb00\\files\\380cc568_P03-EVIDENCE_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P03-EVIDENCE\\attempt-001\\worker-746bdb00\\files\\746bdb00_P03-EVIDENCE.evidence.json",
+      "sha256": "746bdb004fc78f383f00280ba895b83d7711dcf010e449cfd50e69bc9e26a3f4",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P03-EVIDENCE\\attempt-001\\worker-746bdb00\\files\\a2273b83_P03-EVIDENCE.md",
+      "sha256": "a2273b836c84b7e8149dcb44af9e0218f0f5dd0ed3b7faf231ed1be6e55b0b8b",
+      "retained": true
+    }
+  ]
+}

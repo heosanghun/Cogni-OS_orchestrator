@@ -1,0 +1,34 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\worker-515736d9\\files\\268fbe7e_P05-FINANCE.md",
+      "sha256": "268fbe7e59d8d101e89308b8a7cf3222f53677e2b0a4a8bb3d911491bc072a1c"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\worker-515736d9",
+  "label": "worker",
+  "manifest_sha256": "515736d9eab099c9a44e5d99040273c0b083df65a34e44eec003cd93230fdd7a",
+  "schema_version": 1,
+  "task_id": "P05-FINANCE",
+  "files": [
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\worker-515736d9\\files\\268fbe7e_P05-FINANCE.md",
+      "sha256": "268fbe7e59d8d101e89308b8a7cf3222f53677e2b0a4a8bb3d911491bc072a1c",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\worker-515736d9\\files\\380cc568_P05-FINANCE_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P05-FINANCE\\attempt-001\\worker-515736d9\\files\\515736d9_P05-FINANCE.evidence.json",
+      "sha256": "515736d9eab099c9a44e5d99040273c0b083df65a34e44eec003cd93230fdd7a",
+      "retained": true
+    }
+  ]
+}

@@ -1,0 +1,214 @@
+{
+  "allowed_write_roots": [
+    "src",
+    "tests",
+    "docs",
+    "schemas",
+    "worldpacks"
+  ],
+  "attempt": 1,
+  "blocked_reason": null,
+  "created_at": "2026-07-31T15:48:46Z",
+  "created_by": "codex",
+  "description": "Implement Entity-State-Transition-Constraint schemas, World DSL, belief versus committed state separation, policy verdicts, SSOT commit, human escalation, and rollback. Acceptance: forbidden transitions never commit, deterministic state hashes replay, and all verdicts cite evidence.",
+  "gates": {
+    "allow_skips": false,
+    "require_independent_verification": true,
+    "require_known_answer_check": true,
+    "require_validation": true
+  },
+  "id": "P04-WORLD",
+  "idempotency_key": "cogni-os-roadmap-v1:P04-WORLD",
+  "lease": null,
+  "owner": "antigravity",
+  "permissions": {
+    "gpu": false,
+    "network": false,
+    "performance_metrics": false
+  },
+  "prerequisites": [
+    "P03-EVIDENCE"
+  ],
+  "result": {
+    "manifest": {
+      "artifacts": [
+        {
+          "path": "C:\\comunity\\reports\\antigravity\\P04-WORLD.md",
+          "sha256": "18b95582376af88019bf43f476006ef34e174865ce6a0a52a6689a3536197f81"
+        }
+      ],
+      "claims": [
+        {
+          "evidence": [
+            "P04-WORLD.md"
+          ],
+          "kind": "functional",
+          "measured": true,
+          "name": "phase4_world_kernel",
+          "value": "pass"
+        }
+      ],
+      "known_answer_checks": [
+        {
+          "expected": "world_kernel_established",
+          "name": "P04_World_Verification",
+          "observed": "world_kernel_established",
+          "passed": true
+        }
+      ],
+      "manifest_path": "C:\\comunity\\reports\\antigravity\\P04-WORLD.evidence.json",
+      "manifest_sha256": "0537263e67996d9f8f82638c4cb9e144107ceeb9b0772499acbbf7e14553250b",
+      "totals": {
+        "failed": 0,
+        "passed": 58,
+        "skipped": 0
+      },
+      "validations": [
+        {
+          "command": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe src/cogni_os/tests/run_tests.py",
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "failed": 0,
+          "passed": 58,
+          "raw_output": {
+            "path": "C:\\comunity\\reports\\antigravity\\P04-WORLD_raw_output.txt",
+            "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7"
+          },
+          "skipped": 0
+        }
+      ]
+    },
+    "report": {
+      "contains_fill_marker": false,
+      "path": "C:\\comunity\\reports\\antigravity\\P04-WORLD.md",
+      "sections": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "sha256": "18b95582376af88019bf43f476006ef34e174865ce6a0a52a6689a3536197f81"
+    },
+    "submitted_at": "2026-08-01T02:10:35Z",
+    "submitted_by": "antigravity"
+  },
+  "revision": 5,
+  "schema_version": 1,
+  "state": "verified",
+  "title": "Phase 4 - ESTC world kernel",
+  "updated_at": "2026-08-01T02:10:51Z",
+  "verification": {
+    "decision": "accept",
+    "independence": {
+      "independent": true,
+      "reasons": [],
+      "verifier": {
+        "actor": "antigravity-verifier",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-verifier-control",
+        "model_family": "google-verifier-family",
+        "schema_version": 1
+      },
+      "worker": {
+        "actor": "antigravity",
+        "alias_chain": [],
+        "alias_of": null,
+        "control_principal": "antigravity-executant",
+        "model_family": "google-antigravity",
+        "schema_version": 1
+      }
+    },
+    "note": "P04-WORLD verified.",
+    "trusted_validation": {
+      "actor": "antigravity-verifier",
+      "attempt": 1,
+      "completed_at": "2026-08-01T02:10:51Z",
+      "cuda_visible_devices": "",
+      "environment_sha256": "e9a7b0280e58125b92a8685d8db47f38986965bd0409da50bc059ff7f5d8dd7a",
+      "failure": null,
+      "gpu_allowed": false,
+      "max_output_bytes": 4194304,
+      "network_allowed": false,
+      "network_enforcement": "offline-environment-and-loopback-proxy",
+      "operational_change_count": 0,
+      "operational_paths_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": true,
+      "receipt_path": "C:\\comunity\\runs\\trusted-verifier\\P04-WORLD\\attempt-001\\20260801T021041Z-bab1fcf0\\receipt.json",
+      "receipt_sha256": "74b971eaded2e8cccdc0127b4dd819646c10871e30c29d8801813a6eaa37d016",
+      "runner": "cogni-os-trusted-runner-v1",
+      "schema_version": 1,
+      "source_clean": true,
+      "source_commit": "6b6f2d97c552b7fc2592387ba9af57f5c6b9530b",
+      "source_postcheck_error": null,
+      "source_postcheck_passed": true,
+      "started_at": "2026-08-01T02:10:41Z",
+      "task_id": "P04-WORLD",
+      "validations": [
+        {
+          "command_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "command_policy": {
+            "code_path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+            "code_paths": [
+              {
+                "path": "C:\\comunity\\src\\cogni_os\\tests\\run_tests.py",
+                "sha256": "d9906f90166248bbd2239b4bcc941475281e8fe2e1a5e097c0c6ee356b52ae61"
+              }
+            ],
+            "executable_binding": "current-python-runtime",
+            "executable_path": "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "executable_sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+            "executed_argv": [
+              "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+              "src/cogni_os/tests/run_tests.py"
+            ],
+            "kind": "python"
+          },
+          "completed_at": "2026-08-01T02:10:51Z",
+          "duration_ms": 9938.0,
+          "executable_sha256_after": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+          "executed_argv": [
+            "C:\\Project\\Deep Equilibrium8\\python_dist\\python.exe",
+            "src/cogni_os/tests/run_tests.py"
+          ],
+          "exit_code": 0,
+          "index": 0,
+          "output_path": "C:\\comunity\\runs\\trusted-verifier\\P04-WORLD\\attempt-001\\20260801T021041Z-bab1fcf0\\validation-000.log",
+          "output_sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+          "output_size_bytes": 18,
+          "output_truncated": false,
+          "started_at": "2026-08-01T02:10:41Z",
+          "timed_out": false,
+          "timeout_seconds": 300
+        }
+      ]
+    },
+    "verified_at": "2026-08-01T02:10:51Z",
+    "verified_by": "antigravity-verifier",
+    "verifier_evidence": {
+      "bundle": {
+        "archived_artifacts": [
+          {
+            "path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd\\files\\4c21d32f_P04-WORLD.verifier-report.md",
+            "sha256": "4c21d32f0f35aaf04760a3e16d7a9077a73a7a9f1e59467216203a7c0aa4e5be"
+          }
+        ],
+        "attempt": 1,
+        "bundle_dir": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\verifier-bf0178bd",
+        "label": "verifier",
+        "manifest_sha256": "bf0178bdcc1d7a3a8d4a1d1427a24911495fd12c95aff13d58c3796d441830b5",
+        "schema_version": 1,
+        "task_id": "P04-WORLD"
+      },
+      "manifest_sha256": "bf0178bdcc1d7a3a8d4a1d1427a24911495fd12c95aff13d58c3796d441830b5"
+    }
+  }
+}

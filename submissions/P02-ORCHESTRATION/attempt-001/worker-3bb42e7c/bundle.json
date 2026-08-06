@@ -1,0 +1,34 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\worker-3bb42e7c\\files\\20bfce0a_P02-ORCHESTRATION.md",
+      "sha256": "20bfce0a68c1eec8034b067fe2f0dc83514234c1672ad075a373d45d62842247"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\worker-3bb42e7c",
+  "label": "worker",
+  "manifest_sha256": "3bb42e7c4a8de7906e5591d9a2365d9e45d2ac65938a15c5a600a3ba25345550",
+  "schema_version": 1,
+  "task_id": "P02-ORCHESTRATION",
+  "files": [
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\worker-3bb42e7c\\files\\20bfce0a_P02-ORCHESTRATION.md",
+      "sha256": "20bfce0a68c1eec8034b067fe2f0dc83514234c1672ad075a373d45d62842247",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\worker-3bb42e7c\\files\\380cc568_P02-ORCHESTRATION_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P02-ORCHESTRATION\\attempt-001\\worker-3bb42e7c\\files\\3bb42e7c_P02-ORCHESTRATION.evidence.json",
+      "sha256": "3bb42e7c4a8de7906e5591d9a2365d9e45d2ac65938a15c5a600a3ba25345550",
+      "retained": true
+    }
+  ]
+}

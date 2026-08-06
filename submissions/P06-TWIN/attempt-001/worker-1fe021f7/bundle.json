@@ -1,0 +1,34 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\worker-1fe021f7\\files\\d97c01b1_P06-TWIN.md",
+      "sha256": "d97c01b1fa86ae0043e597296a156f33bed0f5b3bf2af8fb40c58cfa53ec8269"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\worker-1fe021f7",
+  "label": "worker",
+  "manifest_sha256": "1fe021f7e195f668f7f201da55a874b8f6fdf840d33acd37c4920cf2a4bad3b7",
+  "schema_version": 1,
+  "task_id": "P06-TWIN",
+  "files": [
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\worker-1fe021f7\\files\\1fe021f7_P06-TWIN.evidence.json",
+      "sha256": "1fe021f7e195f668f7f201da55a874b8f6fdf840d33acd37c4920cf2a4bad3b7",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\worker-1fe021f7\\files\\380cc568_P06-TWIN_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P06-TWIN\\attempt-001\\worker-1fe021f7\\files\\d97c01b1_P06-TWIN.md",
+      "sha256": "d97c01b1fa86ae0043e597296a156f33bed0f5b3bf2af8fb40c58cfa53ec8269",
+      "retained": true
+    }
+  ]
+}

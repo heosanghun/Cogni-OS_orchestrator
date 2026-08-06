@@ -1,0 +1,34 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P10-COGNIBOARD\\attempt-001\\worker-07a6566c\\files\\4175d182_P10-COGNIBOARD.md",
+      "sha256": "4175d18215259b52a204e57c84af9d075704a16303eeb302f9017b58732f2527"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P10-COGNIBOARD\\attempt-001\\worker-07a6566c",
+  "label": "worker",
+  "manifest_sha256": "07a6566c948e552b605deeeb96b531a685cf4425beaa4a21ca0b5b8f411a62c2",
+  "schema_version": 1,
+  "task_id": "P10-COGNIBOARD",
+  "files": [
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P10-COGNIBOARD\\attempt-001\\worker-07a6566c\\files\\07a6566c_P10-COGNIBOARD.evidence.json",
+      "sha256": "07a6566c948e552b605deeeb96b531a685cf4425beaa4a21ca0b5b8f411a62c2",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P10-COGNIBOARD\\attempt-001\\worker-07a6566c\\files\\380cc568_P10-COGNIBOARD_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P10-COGNIBOARD\\attempt-001\\worker-07a6566c\\files\\4175d182_P10-COGNIBOARD.md",
+      "sha256": "4175d18215259b52a204e57c84af9d075704a16303eeb302f9017b58732f2527",
+      "retained": true
+    }
+  ]
+}

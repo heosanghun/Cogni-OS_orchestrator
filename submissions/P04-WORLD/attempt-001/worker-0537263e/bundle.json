@@ -1,0 +1,34 @@
+{
+  "archived_artifacts": [
+    {
+      "path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\worker-0537263e\\files\\18b95582_P04-WORLD.md",
+      "sha256": "18b95582376af88019bf43f476006ef34e174865ce6a0a52a6689a3536197f81"
+    }
+  ],
+  "attempt": 1,
+  "bundle_dir": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\worker-0537263e",
+  "label": "worker",
+  "manifest_sha256": "0537263e67996d9f8f82638c4cb9e144107ceeb9b0772499acbbf7e14553250b",
+  "schema_version": 1,
+  "task_id": "P04-WORLD",
+  "files": [
+    {
+      "kind": "manifest",
+      "archive_path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\worker-0537263e\\files\\0537263e_P04-WORLD.evidence.json",
+      "sha256": "0537263e67996d9f8f82638c4cb9e144107ceeb9b0772499acbbf7e14553250b",
+      "retained": true
+    },
+    {
+      "kind": "report",
+      "archive_path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\worker-0537263e\\files\\18b95582_P04-WORLD.md",
+      "sha256": "18b95582376af88019bf43f476006ef34e174865ce6a0a52a6689a3536197f81",
+      "retained": true
+    },
+    {
+      "kind": "trusted_runner_output",
+      "archive_path": "C:\\comunity\\submissions\\P04-WORLD\\attempt-001\\worker-0537263e\\files\\380cc568_P04-WORLD_raw_output.txt",
+      "sha256": "380cc5688343ca1fab822e9cfe344e1e31577c42f583297abf8f2429f1bab0c7",
+      "retained": true
+    }
+  ]
+}
