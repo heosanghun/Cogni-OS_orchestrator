@@ -1,6 +1,6 @@
 # Cogni-OS 독립 검증 서비스 아키텍처
 
-상태: **설계 확정 / 구현 전 / Phase 1 NO_GO**
+상태: **설계 확정 / 휴대형 프로토콜·receipt·보존 계층 구현 / 운영 서비스·Linux E2E 미완료 / Phase 1 NO_GO**
 
 이 문서는 snapshot broker의 root 서명을 검증 명령 실행 증거로 잘못
 승격할 수 있었던 signing-oracle 결함을 제거하고, Cogni-OS의 독립 재현
@@ -150,17 +150,24 @@ read-only snapshot `/workspace`와 per-run scratch 외의 writable 경로를
 노출하지 않는다. `/dev/nvidia*`는 없어야 하며 `CUDA_VISIBLE_DEVICES=""`,
 `NVIDIA_VISIBLE_DEVICES=void`를 강제한다.
 
-## 9. 필수 구현 파일
+## 9. 구현 현황과 필수 파일
 
-- `src/cogni_os/verifier_protocol.py`
-- `src/cogni_os/verifier_service.py`
-- `src/cogni_os/verifier_journal.py`
-- `src/cogni_os/verifier_receipt.py`
-- `src/cogni_os/retained_source.py`
-- `deploy/systemd/cogni-verifier.socket`
-- `deploy/systemd/cogni-verifier.service`
-- `scripts/install_verifier_service.sh`
-- 요청·receipt exact JSON schema
+- 구현됨: `src/cogni_os/verifier_protocol.py`의 요청·wakeup·receipt exact schema
+- 구현됨: `src/cogni_os/verifier_journal.py`의 일회성 dispatch와 crash recovery 상태 기계
+- 구현됨: `src/cogni_os/verifier_receipt.py`의 분리된 verifier Ed25519 실행·최종 서명
+- 구현됨: `src/cogni_os/verifier_service.py`의 dispatch claim과 cleanup 이후 receipt 영속화
+- 구현됨: `src/cogni_os/retained_source.py`의 bounded content-addressed byte 보존 계층
+- 미구현: Ledger Authority Ed25519 v2 검증과 서명 dispatch 조회
+- 미구현: Git bundle object graph·commit/tree 검증과 retained-only materialization
+- 미구현: 실제 고정 명령 실행, snapshot broker 연동, bwrap child 격리
+- 미구현: `deploy/systemd/cogni-verifier.socket`
+- 미구현: `deploy/systemd/cogni-verifier.service`
+- 미구현: `scripts/install_verifier_service.sh`
+- 미검증: Ubuntu root/systemd/dirfd/bwrap/Ed25519 무-skip E2E
+
+현재 휴대형 단위 테스트 통과는 위 운영 항목의 대체 증거가 아니다. 특히
+`retained_source.py`는 바이트 보존과 재해시만 보장하며, Git object graph나
+commit/tree 진위를 확인하거나 checkout을 생성하지 않는다.
 
 기존 `workspace.py`, `verification_lifecycle.py`, `trust_projection.py`,
 `release_gate.py`, `release_evidence.py`는 이 프로토콜을 요구하도록

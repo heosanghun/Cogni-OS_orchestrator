@@ -51,7 +51,7 @@ EXECUTOR_ENTRYPOINT_PATH = EXECUTOR_RUNTIME_ROOT / "bin/cogni-verifier"
 EXECUTOR_INTERPRETER_PATH = EXECUTOR_RUNTIME_ROOT / "venv/bin/python"
 EXECUTOR_PACKAGE_ROOT = EXECUTOR_RUNTIME_ROOT / "lib/cogni_os"
 EXECUTOR_SERVICE_UNIT_PATH = Path(
-    "/etc/systemd/system/cogni-independent-verifier.service"
+    "/etc/systemd/system/cogni-verifier.service"
 )
 EXECUTOR_RUNTIME_MANIFEST_KEYS = frozenset(
     {
