@@ -1,44 +1,6 @@
 name: Monitoring trust gates
 
-on:
-  push:
-    paths:
-      - "functions/**"
-      - "public/**"
-      - "scripts/**"
-      - "src/cogni_os/**"
-      - "tests/web/**"
-      - "migrations/**"
-      - "deploy/**"
-      - "docs/LIVE_MONITORING_DEPLOYMENT_KO.md"
-      - "docs/PHASE1_RELEASE_TRUTH_KO.md"
-      - "docs/SNAPSHOT_BROKER_DEPLOYMENT_KO.md"
-      - "docs/TRUSTED_RUNNER_ISOLATION_KO.md"
-      - "scripts/install_snapshot_broker.sh"
-      - "scripts/validate_snapshot_broker_integration_inventory.py"
-      - "src/cogni_os/tests/test_snapshot_broker_linux_integration.py"
-      - "package.json"
-      - "wrangler.toml"
-      - ".github/workflows/monitoring-ci.yml"
-  pull_request:
-    paths:
-      - "functions/**"
-      - "public/**"
-      - "scripts/**"
-      - "src/cogni_os/**"
-      - "tests/web/**"
-      - "migrations/**"
-      - "deploy/**"
-      - "docs/LIVE_MONITORING_DEPLOYMENT_KO.md"
-      - "docs/PHASE1_RELEASE_TRUTH_KO.md"
-      - "docs/SNAPSHOT_BROKER_DEPLOYMENT_KO.md"
-      - "docs/TRUSTED_RUNNER_ISOLATION_KO.md"
-      - "scripts/install_snapshot_broker.sh"
-      - "scripts/validate_snapshot_broker_integration_inventory.py"
-      - "src/cogni_os/tests/test_snapshot_broker_linux_integration.py"
-      - "package.json"
-      - "wrangler.toml"
-      - ".github/workflows/monitoring-ci.yml"
+on: [push, pull_request]
 
 permissions:
   contents: read
@@ -53,6 +15,8 @@ jobs:
         python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -60,6 +24,19 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python -I scripts/validate_python_test_inventory.py
+      - name: Immutable operational evidence history
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$BASE_SHA"
+          if [[ ! "$base" =~ ^[0-9a-f]{40}$ ]] || [[ "$base" =~ ^0+$ ]]; then
+            git fetch --no-tags origin "$DEFAULT_BRANCH"
+            base="$(git merge-base HEAD "origin/$DEFAULT_BRANCH")"
+          fi
+          python -I scripts/validate_operational_evidence_diff.py --base "$base"
       - name: Ordered monitoring migration validator
         run: python -I scripts/validate_monitoring_migrations.py
 
@@ -99,6 +76,9 @@ jobs:
       - name: PowerShell publisher and scheduled-task trust validator
         shell: powershell
         run: .\scripts\validate_p01_powershell.ps1
+      - name: Codex-Antigravity pair protocol validator
+        shell: powershell
+        run: .\tests\pair_workbench_test.ps1
 
   linux-root-broker:
     name: Linux root broker snapshot-only proof (Phase 1 NO-GO)

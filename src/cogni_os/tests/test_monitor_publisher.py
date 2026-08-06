@@ -28,9 +28,11 @@ from cogni_os.trust_projection import task_trust_state
 from cogni_os.util import canonical_json
 from cogni_os.workspace import Workspace
 from scripts.publish_monitor_snapshot import (
+    PRODUCTION_RUNTIME_ENV,
     RELEASE_ARTIFACT_FILES,
     PublisherAlreadyRunning,
     PublisherInstanceLock,
+    _configure_production_runtime,
     _run_capped_command,
     append_runtime_journal,
     audit_operational_evidence,
@@ -592,11 +594,26 @@ class MonitorPublisherTests(unittest.TestCase):
         self.assertEqual(validate_publish_endpoint(production), production)
         rejected = (
             "http://cogni-os-orchestrator.pages.dev/api/ingest",
+            "HTTPS://cogni-os-orchestrator.pages.dev/api/ingest",
+            "https://COGNI-OS-ORCHESTRATOR.PAGES.DEV/api/ingest",
+            "https://cogni-os-orchestrator.pages.dev:443/api/ingest",
+            "https://cogni-os-orchestrator.pages.dev:0443/api/ingest",
+            "https://cogni-os-orchestrator.pages.dev:/api/ingest",
             "https://cogni-os-orchestrator.pages.dev:444/api/ingest",
+            "https://cogni-os-orchestrator.pages.dev:abc/api/ingest",
+            "https://cogni-os-orchestrator.pages.dev:65536/api/ingest",
             "https://cogni-os-orchestrator.pages.dev/api/ingest?next=evil",
+            "https://cogni-os-orchestrator.pages.dev/api/ingest?",
+            "https://cogni-os-orchestrator.pages.dev/api/ingest#",
+            "https://cogni-os-orchestrator.pages.dev/api/ingest#evil",
             "https://user@cogni-os-orchestrator.pages.dev/api/ingest",
             "https://cogni-os-orchestrator.pages.dev.evil/api/ingest",
+            "https://cogni-os-orchestrator.pages.dev./api/ingest",
             "https://cogni-os-orchestrator.pages.dev/api/ingest/",
+            " https://cogni-os-orchestrator.pages.dev/api/ingest",
+            "https://cogni-os-orchestrator.pages.dev/api/ingest\n",
+            "https://cogni-os-orchestrator.pages.dev/api/ingest\r",
+            "https://cogni-os-orchestrator.pages.dev/\tapi/ingest",
         )
         for endpoint in rejected:
             with self.subTest(endpoint=endpoint), self.assertRaises(RuntimeError):
@@ -613,6 +630,100 @@ class MonitorPublisherTests(unittest.TestCase):
             ),
             endpoint,
         )
+        aliases = (
+            (
+                "https://MONITOR.EXAMPLE.INVALID/api/ingest",
+                {"monitor.example.invalid"},
+            ),
+            (
+                "https://monitor.example.invalid:443/api/ingest",
+                {"monitor.example.invalid"},
+            ),
+            (
+                "https://monitor.example.invalid./api/ingest",
+                {"monitor.example.invalid."},
+            ),
+        )
+        for alias, allowlist in aliases:
+            with self.subTest(alias=alias), self.assertRaises(RuntimeError):
+                validate_publish_endpoint(alias, allowed_hosts=allowlist)
+
+    @patch("scripts.publish_monitor_snapshot.Workspace")
+    def test_canonical_production_endpoint_requires_bootstrap(self, workspace) -> None:
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            self.assertRaisesRegex(RuntimeError, "trusted PowerShell bootstrap"),
+        ):
+            main(
+                [
+                    "unused-workspace",
+                    "--endpoint",
+                    "https://cogni-os-orchestrator.pages.dev/api/ingest",
+                ]
+            )
+        workspace.assert_not_called()
+
+    @patch("scripts.publish_monitor_snapshot.Workspace")
+    def test_endpoint_alias_fails_before_workspace_access(self, workspace) -> None:
+        aliases = (
+            "https://COGNI-OS-ORCHESTRATOR.PAGES.DEV/api/ingest",
+            "https://cogni-os-orchestrator.pages.dev:443/api/ingest",
+            "https://cogni-os-orchestrator.pages.dev/api/ingest?",
+            "https://cogni-os-orchestrator.pages.dev./api/ingest",
+            " https://cogni-os-orchestrator.pages.dev/api/ingest",
+        )
+        for endpoint in aliases:
+            with (
+                self.subTest(endpoint=endpoint),
+                patch.dict(os.environ, {}, clear=True),
+                self.assertRaisesRegex(RuntimeError, "canonical"),
+            ):
+                main(["unused-workspace", "--endpoint", endpoint])
+        workspace.assert_not_called()
+
+    def test_production_runtime_allows_explicit_custom_host_without_bootstrap(
+        self,
+    ) -> None:
+        args = SimpleNamespace(
+            endpoint="https://monitor.example.invalid/api/ingest",
+            dry_run=False,
+            allowed_endpoint_host=["monitor.example.invalid"],
+        )
+        with patch.dict(os.environ, {}, clear=True):
+            _configure_production_runtime(args)
+        self.assertEqual(args.endpoint, "https://monitor.example.invalid/api/ingest")
+
+    def test_production_runtime_rejects_invalid_endpoint_before_bootstrap(self) -> None:
+        args = SimpleNamespace(
+            endpoint="https://cogni-os-orchestrator.pages.dev/api/ingest?next=evil",
+            dry_run=False,
+            allowed_endpoint_host=[],
+        )
+        with (
+            patch.dict(os.environ, {PRODUCTION_RUNTIME_ENV: "1"}, clear=True),
+            self.assertRaisesRegex(RuntimeError, "endpoint"),
+        ):
+            _configure_production_runtime(args)
+
+    def test_production_runtime_dry_run_does_not_require_bootstrap(self) -> None:
+        args = SimpleNamespace(
+            endpoint="https://cogni-os-orchestrator.pages.dev/api/ingest",
+            dry_run=True,
+            allowed_endpoint_host=[],
+        )
+        with patch.dict(os.environ, {}, clear=True):
+            _configure_production_runtime(args)
+
+    def test_monitoring_workflow_runs_for_every_repository_change(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "monitoring-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("on: [push, pull_request]", workflow)
+        self.assertNotIn("paths:", workflow)
+        self.assertIn("fetch-depth: 0", workflow)
+        self.assertIn("github.event.repository.default_branch", workflow)
+        self.assertIn("validate_operational_evidence_diff.py", workflow)
+        self.assertIn(".\\tests\\pair_workbench_test.ps1", workflow)
 
     @patch("scripts.publish_monitor_snapshot.socket.gethostname")
     def test_collector_host_is_pseudonymous(self, hostname) -> None:

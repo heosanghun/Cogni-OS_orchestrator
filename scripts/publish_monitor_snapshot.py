@@ -379,6 +379,17 @@ def _configure_production_runtime(args: argparse.Namespace) -> None:
     global _PRODUCTION_SOURCE_COMMIT
     global _PRODUCTION_CODE_MANIFEST_SHA256
 
+    # Classify the destination only after applying the same validation used by
+    # the network publisher.  Comparing the caller supplied string before this
+    # check allowed alternate spellings of the production origin to reach the
+    # canonical ingest endpoint without the trusted PowerShell bootstrap.
+    args.endpoint = validate_publish_endpoint(
+        args.endpoint,
+        allowed_hosts={
+            DEFAULT_ENDPOINT_HOST,
+            *args.allowed_endpoint_host,
+        },
+    )
     production_endpoint = args.endpoint == DEFAULT_ENDPOINT and not args.dry_run
     enabled = os.environ.get(PRODUCTION_RUNTIME_ENV) == "1"
     if production_endpoint and not enabled:
@@ -728,29 +739,41 @@ def validate_publish_endpoint(
     *,
     allowed_hosts: set[str] | None = None,
 ) -> str:
-    parsed = urlsplit(endpoint)
+    if not isinstance(endpoint, str) or not endpoint:
+        raise RuntimeError("Monitoring endpoint must be a canonical HTTPS URL")
+    try:
+        parsed = urlsplit(endpoint)
+        port = parsed.port
+    except ValueError as error:
+        raise RuntimeError(
+            "Monitoring endpoint must be a canonical HTTPS URL"
+        ) from error
     allowed = {
         host.strip().lower()
         for host in (allowed_hosts or {DEFAULT_ENDPOINT_HOST})
         if isinstance(host, str) and host.strip()
     }
     hostname = (parsed.hostname or "").lower()
+    canonical = f"https://{hostname}/api/ingest" if hostname else ""
     if (
         parsed.scheme != "https"
         or not hostname
+        or not hostname.isascii()
+        or hostname.endswith(".")
         or hostname not in allowed
-        or parsed.port not in {None, 443}
+        or port is not None
         or parsed.username is not None
         or parsed.password is not None
         or parsed.query
         or parsed.fragment
         or parsed.path != "/api/ingest"
+        or endpoint != canonical
     ):
         raise RuntimeError(
-            "Monitoring endpoint must be an allowlisted HTTPS host on "
-            "port 443 with the exact /api/ingest path"
+            "Monitoring endpoint must be a canonical allowlisted HTTPS "
+            "host with the exact /api/ingest path"
         )
-    return parsed.geturl()
+    return canonical
 
 
 def _projection_secret() -> bytes | None:
