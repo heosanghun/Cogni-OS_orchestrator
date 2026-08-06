@@ -603,7 +603,7 @@ class VerifierServiceProtocolTests(unittest.TestCase):
         self.assertTrue(retried.idempotent)
         self.assertFalse(self.service.assurance["release_ready"])
         self.assertIn(
-            "ledger_authority_ed25519_verification_unimplemented",
+            "ledger_authority_ed25519_dispatch_integration_unimplemented",
             self.service.assurance["release_blockers"],
         )
 

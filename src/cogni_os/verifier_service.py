@@ -38,7 +38,7 @@ SERVICE_ASSURANCE_SCOPE: Final = (
     "protocol-receipt-journal-only-ledger-ed25519-unimplemented"
 )
 SERVICE_RELEASE_BLOCKERS: Final = (
-    "ledger_authority_ed25519_verification_unimplemented",
+    "ledger_authority_ed25519_dispatch_integration_unimplemented",
     "retained_source_execution_unimplemented",
     "ubuntu_root_systemd_bwrap_e2e_unverified",
     "linux_posix_root_dirfd_e2e_unverified",

@@ -157,7 +157,12 @@ read-only snapshot `/workspace`와 per-run scratch 외의 writable 경로를
 - 구현됨: `src/cogni_os/verifier_receipt.py`의 분리된 verifier Ed25519 실행·최종 서명
 - 구현됨: `src/cogni_os/verifier_service.py`의 dispatch claim과 cleanup 이후 receipt 영속화
 - 구현됨: `src/cogni_os/retained_source.py`의 bounded content-addressed byte 보존 계층
-- 미구현: Ledger Authority Ed25519 v2 검증과 서명 dispatch 조회
+- 구현됨(경계 모듈): `src/cogni_os/ledger_authority_v2.py`의 exact Ed25519 v2
+  envelope, canonical SPKI `key_id`, `ledger_id`, 키 영역 분리, full-chain 현재
+  head 전용 signed dispatch 검증 API
+- 미구현: Ledger Authority append daemon·키 설치/회전, HMAC v1 원장의 실제
+  bounded-byte audit-only migration, durable log/checkpoint,
+  `workspace.py`·trust projection·release gate terminal/supersession v2 전환
 - 미구현: Git bundle object graph·commit/tree 검증과 retained-only materialization
 - 미구현: 실제 고정 명령 실행, snapshot broker 연동, bwrap child 격리
 - 미구현: `deploy/systemd/cogni-verifier.socket`
