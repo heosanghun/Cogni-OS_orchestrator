@@ -149,6 +149,19 @@ class Ledger:
         """Verify sequence, hash links, event hashes, and HMAC signatures."""
         return self._verify_events(self.read())
 
+    def read_verified(self) -> list[dict[str, Any]]:
+        """Return one in-memory ledger snapshot after signature verification.
+
+        Consumers that project security-sensitive state must not call
+        :meth:`verify` and :meth:`read` separately: the ledger could change
+        between those two reads.  This method validates and returns the exact
+        event objects from one read instead.
+        """
+
+        events = self.read()
+        self._verify_events(events)
+        return events
+
     def projected_tasks(self) -> dict[str, dict[str, Any]]:
         """Reconstruct the latest task snapshots from the event stream."""
         tasks: dict[str, dict[str, Any]] = {}

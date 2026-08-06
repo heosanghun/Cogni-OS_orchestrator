@@ -5,42 +5,278 @@ on:
     paths:
       - "functions/**"
       - "public/**"
-      - "scripts/publish_monitor_snapshot.py"
+      - "scripts/**"
       - "src/cogni_os/**"
       - "tests/web/**"
       - "migrations/**"
+      - "deploy/**"
+      - "docs/LIVE_MONITORING_DEPLOYMENT_KO.md"
+      - "docs/PHASE1_RELEASE_TRUTH_KO.md"
+      - "docs/SNAPSHOT_BROKER_DEPLOYMENT_KO.md"
+      - "docs/TRUSTED_RUNNER_ISOLATION_KO.md"
+      - "scripts/install_snapshot_broker.sh"
+      - "scripts/validate_snapshot_broker_integration_inventory.py"
+      - "src/cogni_os/tests/test_snapshot_broker_linux_integration.py"
       - "package.json"
+      - "wrangler.toml"
       - ".github/workflows/monitoring-ci.yml"
   pull_request:
     paths:
       - "functions/**"
       - "public/**"
-      - "scripts/publish_monitor_snapshot.py"
+      - "scripts/**"
       - "src/cogni_os/**"
       - "tests/web/**"
       - "migrations/**"
+      - "deploy/**"
+      - "docs/LIVE_MONITORING_DEPLOYMENT_KO.md"
+      - "docs/PHASE1_RELEASE_TRUTH_KO.md"
+      - "docs/SNAPSHOT_BROKER_DEPLOYMENT_KO.md"
+      - "docs/TRUSTED_RUNNER_ISOLATION_KO.md"
+      - "scripts/install_snapshot_broker.sh"
+      - "scripts/validate_snapshot_broker_integration_inventory.py"
+      - "src/cogni_os/tests/test_snapshot_broker_linux_integration.py"
       - "package.json"
+      - "wrangler.toml"
+      - ".github/workflows/monitoring-ci.yml"
 
 permissions:
   contents: read
 
 jobs:
-  monitoring-trust:
+  python-trust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Fixed-inventory Python trust validator
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -I scripts/validate_python_test_inventory.py
+      - name: Ordered monitoring migration validator
+        run: python -I scripts/validate_monitoring_migrations.py
+
+  node-trust:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
-      - name: Python tests
+      - name: Generate synthetic attribution fixture (not deployment evidence)
         env:
-          PYTHONPATH: src
-        run: python -m unittest discover -s src/cogni_os/tests -v
+          CF_PAGES: "1"
+          CF_PAGES_COMMIT_SHA: ${{ github.sha }}
+          CF_PAGES_BRANCH: main
+          CF_PAGES_URL: https://${{ github.sha }}.cogni-os-orchestrator.pages.dev
+        run: npm run build
       - name: JavaScript syntax
         run: npm run check
-      - name: Signed ingest and fail-closed UI tests
-        run: npm test
+      - name: Fixed-inventory Node trust validator
+        run: node scripts/validate_p01_node.mjs
+      - name: Synthetic attribution contract rejects preview metadata
+        env:
+          CF_PAGES_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module -e "import('./functions/_lib/deployment.generated.js').then(({BUILD_DEPLOYMENT}) => { if (!BUILD_DEPLOYMENT.build_bound || BUILD_DEPLOYMENT.source_commit !== process.env.CF_PAGES_COMMIT_SHA) process.exit(1); })"
+          if CF_PAGES=1 CF_PAGES_COMMIT_SHA="$CF_PAGES_COMMIT_SHA" CF_PAGES_BRANCH=preview CF_PAGES_URL=https://preview.cogni-os-orchestrator.pages.dev node scripts/generate_deployment_attribution.mjs; then exit 1; fi
+          if CF_PAGES=1 CF_PAGES_COMMIT_SHA="$CF_PAGES_COMMIT_SHA" CF_PAGES_BRANCH=main CF_PAGES_URL=https://other-project.pages.dev node scripts/generate_deployment_attribution.mjs; then exit 1; fi
+          if CF_PAGES=1 CF_PAGES_COMMIT_SHA="$CF_PAGES_COMMIT_SHA" CF_PAGES_BRANCH=main CF_PAGES_URL=https://cogni-os-orchestrator.pages.dev node scripts/generate_deployment_attribution.mjs; then exit 1; fi
+
+  windows-powershell-trust:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: PowerShell publisher and scheduled-task trust validator
+        shell: powershell
+        run: .\scripts\validate_p01_powershell.ps1
+
+  linux-root-broker:
+    name: Linux root broker snapshot-only proof (Phase 1 NO-GO)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BROKER_CLIENT_ROLE: "adversarial-transport-client-not-verifier"
+      BROKER_PROOF_SCOPE: "broker-snapshot-only"
+      PHASE1_RELEASE_ELIGIBLE: "false"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PIP_NO_INDEX: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail-closed runner image and no-GPU preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          if compgen -G '/dev/nvidia*' >/dev/null; then
+            echo 'GPU device nodes are forbidden in the root-broker job.' >&2
+            exit 1
+          fi
+          for executable in /usr/bin/git /usr/bin/openssl /usr/bin/python3.12 /usr/bin/systemctl /usr/bin/systemd-run /usr/bin/timeout; do
+            test -x "$executable" || {
+              echo "Mandatory fixed runner-image prerequisite is absent: $executable" >&2
+              exit 1
+            }
+          done
+          python -I -c 'import re,setuptools,setuptools.build_meta as backend; match=re.match(r"^(\d+)", setuptools.__version__); raise SystemExit(0 if match and int(match.group(1)) >= 61 and callable(backend.build_wheel) else 1)'
+          python -I scripts/validate_snapshot_broker_integration_inventory.py
+
+      - name: Build one local wheel without isolation or network resolution
+        id: wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-broker-wheel
+          python -m pip wheel \
+            --no-build-isolation \
+            --no-deps \
+            --no-index \
+            --wheel-dir .ci-broker-wheel \
+            .
+          mapfile -t wheels < <(find .ci-broker-wheel -maxdepth 1 -type f -name 'cogni_os-*.whl' -print)
+          test "${#wheels[@]}" -eq 1
+          wheel_sha256="$(sha256sum "${wheels[0]}" | cut -d ' ' -f 1)"
+          [[ "$wheel_sha256" =~ ^[0-9a-f]{64}$ ]]
+          echo "path=${wheels[0]}" >> "$GITHUB_OUTPUT"
+          echo "sha256=$wheel_sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Provision root-owned artifact and adversarial transport client
+        shell: bash
+        env:
+          WHEEL_PATH: ${{ steps.wheel.outputs.path }}
+          WHEEL_SHA256: ${{ steps.wheel.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          sudo install -d -o root -g root -m 0755 /var/lib/cogni-os
+          sudo install -d -o root -g root -m 0755 /var/lib/cogni-os/snapshot-broker
+          sudo install -o root -g root -m 0444 "$WHEEL_PATH" /var/lib/cogni-os/snapshot-broker/cogni_os.whl
+          installed_sha256="$(sudo sha256sum /var/lib/cogni-os/snapshot-broker/cogni_os.whl | cut -d ' ' -f 1)"
+          test "$installed_sha256" = "$WHEEL_SHA256"
+          sudo /bin/sh scripts/install_snapshot_broker.sh
+          sudo cmp --silent deploy/systemd/cogni-snapshot-broker.service /etc/systemd/system/cogni-snapshot-broker.service
+          test "$(sudo stat -c '%u:%g:%a' /etc/cogni-os/snapshot-broker)" = '0:0:755'
+          test "$(sudo stat -c '%u:%g:%a' /etc/cogni-os/snapshot-broker/ed25519-private.pem)" = '0:0:600'
+          for public_artifact in ed25519-public.pem openssl.sha256 runtime.json; do
+            test "$(sudo stat -c '%u:%g:%a' "/etc/cogni-os/snapshot-broker/$public_artifact")" = '0:0:644'
+          done
+          sudo /opt/cogni-os/snapshot-broker-v1/venv/bin/python -I -c \
+            'import json,pathlib,sys; raw=pathlib.Path("/etc/cogni-os/snapshot-broker/runtime.json").read_text(); value=json.loads(raw); keys={"entry_module","package_root","package_tree_sha256","python_path","python_sha256","runtime_id","schema_version","wheel_sha256"}; safe=set(value)==keys and value["wheel_sha256"]==sys.argv[1] and not any(word in raw.lower() for word in ("private","secret","token","credential")); raise SystemExit(0 if safe else 1)' \
+            "$WHEEL_SHA256"
+          sudo /usr/sbin/useradd --create-home --shell /bin/bash cogni-ci
+          sudo /usr/sbin/usermod --append --groups cogni-broker cogni-ci
+          test "$(id -u cogni-ci)" -ge 1000
+          id -nG cogni-ci | tr ' ' '\n' | grep -Fxq cogni-broker
+          for public_artifact in ed25519-public.pem openssl.sha256 runtime.json; do
+            sudo -u cogni-ci test -r "/etc/cogni-os/snapshot-broker/$public_artifact"
+          done
+          if sudo -u cogni-ci test -r /etc/cogni-os/snapshot-broker/ed25519-private.pem; then
+            echo 'Unprivileged broker client can read the private signing key.' >&2
+            exit 1
+          fi
+          sudo systemctl enable --now cogni-snapshot-broker.service
+          sudo systemctl is-active --quiet cogni-snapshot-broker.service
+          for attempt in $(seq 1 50); do
+            sudo test -S /run/cogni-os/trusted-snapshot-broker.sock && break
+            test "$attempt" -lt 50 || {
+              echo 'Broker socket did not become ready within 10 seconds.' >&2
+              exit 1
+            }
+            sleep 0.2
+          done
+          test "$(sudo stat -c '%U:%G:%a' /run/cogni-os/trusted-snapshot-broker.sock)" = 'root:cogni-broker:660'
+
+      - name: Prepare exact unprivileged committed workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -u cogni-ci git clone --no-local --no-checkout "$GITHUB_WORKSPACE" /home/cogni-ci/workspace
+          sudo -u cogni-ci git -C /home/cogni-ci/workspace checkout --detach "$GITHUB_SHA"
+          test "$(sudo -u cogni-ci git -C /home/cogni-ci/workspace rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(sudo -u cogni-ci git -C /home/cogni-ci/workspace status --porcelain=v1 --untracked-files=all)"
+
+      - name: Run exact broker inventory as enrolled unprivileged user
+        shell: bash
+        env:
+          COGNI_RUN_ROOT_BROKER_INTEGRATION: "1"
+        run: |
+          set -euo pipefail
+          unit="cogni-broker-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          sudo /usr/bin/timeout --signal=KILL 150s /usr/bin/systemd-run \
+            --quiet \
+            --wait \
+            --pipe \
+            --collect \
+            --unit="$unit" \
+            --uid=cogni-ci \
+            --gid=cogni-ci \
+            --working-directory=/home/cogni-ci/workspace \
+            --property=SupplementaryGroups=cogni-broker \
+            --property=RestrictAddressFamilies=AF_UNIX \
+            --property=IPAddressDeny=any \
+            --property=PrivateNetwork=yes \
+            --property=PrivateTmp=yes \
+            --property=NoNewPrivileges=yes \
+            --property=MemoryMax=1G \
+            /usr/bin/env -i \
+              HOME=/home/cogni-ci \
+              LANG=C.UTF-8 \
+              PATH=/usr/bin:/bin \
+              PYTHONDONTWRITEBYTECODE=1 \
+              BROKER_CLIENT_ROLE="$BROKER_CLIENT_ROLE" \
+              BROKER_PROOF_SCOPE="$BROKER_PROOF_SCOPE" \
+              PHASE1_RELEASE_ELIGIBLE="$PHASE1_RELEASE_ELIGIBLE" \
+              COGNI_RUN_ROOT_BROKER_INTEGRATION="$COGNI_RUN_ROOT_BROKER_INTEGRATION" \
+              COGNI_BROKER_TEST_WORKSPACE=/home/cogni-ci/workspace \
+              /opt/cogni-os/snapshot-broker-v1/venv/bin/python -I \
+              /home/cogni-ci/workspace/scripts/validate_snapshot_broker_integration_inventory.py --run
+
+      - name: Verify broker cleanup and retain Phase 1 NO-GO
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$BROKER_CLIENT_ROLE" = 'adversarial-transport-client-not-verifier'
+          test "$BROKER_PROOF_SCOPE" = 'broker-snapshot-only'
+          test "$PHASE1_RELEASE_ELIGIBLE" = 'false'
+          for directory in /run/cogni-os/trusted-snapshots /run/cogni-os/trusted-snapshot-leases; do
+            sudo test -d "$directory"
+            if sudo find "$directory" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+              echo "Broker cleanup left state in $directory" >&2
+              exit 1
+            fi
+          done
+
+      - name: Bounded broker diagnostics
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set +e
+          sudo journalctl --unit=cogni-snapshot-broker.service --no-pager --lines=80 --output=short-iso | head -c 65536
+          sudo systemctl status cogni-snapshot-broker.service --no-pager --lines=40 | head -c 32768
+
+      - name: Always remove ephemeral broker material
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          sudo systemctl disable --now cogni-snapshot-broker.service >/dev/null 2>&1
+          sudo /usr/sbin/userdel --remove cogni-ci >/dev/null 2>&1
+          sudo rm -rf -- \
+            /run/cogni-os \
+            /opt/cogni-os/snapshot-broker-v1 \
+            /etc/cogni-os/snapshot-broker \
+            /var/lib/cogni-os/snapshot-broker
+          sudo rm -f -- /etc/systemd/system/cogni-snapshot-broker.service
+          sudo systemctl daemon-reload >/dev/null 2>&1

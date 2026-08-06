@@ -13,11 +13,15 @@ from cogni_os.roadmap import (
     roadmap_snapshot,
     roadmap_status,
 )
+from cogni_os.tests._actor_capability_test_support import (
+    install_legacy_capability_fixture,
+)
 from cogni_os.workspace import Workspace
 
 
 class RoadmapTests(unittest.TestCase):
     def setUp(self) -> None:
+        install_legacy_capability_fixture(self)
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.workspace = Workspace.initialize(
@@ -136,13 +140,19 @@ class RoadmapTests(unittest.TestCase):
         )
         self.assertEqual(
             status["progress_basis"],
-            "trusted-roadmap-task-states",
+            "historically-trusted-roadmap-task-states",
         )
 
     def test_snapshot_counts_only_canonical_trusted_phase_states(self) -> None:
         status = roadmap_snapshot(
             [
-                {"id": "P01-TRUTH", "state": "verified"},
+                {
+                    "id": "P01-TRUTH",
+                    "state": "verified",
+                    "verified_source_commit": "a" * 40,
+                    "current_release_state": "verification_disputed",
+                    "current_release_validated": False,
+                },
                 {"id": "P02-ORCHESTRATION", "state": "verification_disputed"},
                 {"id": "T-UNRELATED", "state": "verified"},
             ]
@@ -150,8 +160,13 @@ class RoadmapTests(unittest.TestCase):
 
         self.assertEqual(status["total"], 11)
         self.assertEqual(status["trusted_complete"], 1)
+        self.assertEqual(status["current_release_validated"], 0)
         self.assertEqual(status["progress_percent"], 9.1)
         self.assertEqual(status["phases"][0]["state"], "verified")
+        self.assertEqual(
+            status["phases"][0]["current_release_state"],
+            "verification_disputed",
+        )
         self.assertEqual(
             status["phases"][1]["state"],
             "verification_disputed",

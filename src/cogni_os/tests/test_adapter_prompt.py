@@ -7,10 +7,16 @@ import unittest
 from pathlib import Path
 
 from cogni_os.adapter import render_task_prompt
+from cogni_os.tests._actor_capability_test_support import (
+    install_legacy_capability_fixture,
+)
 from cogni_os.workspace import Workspace
 
 
 class AdapterPromptTests(unittest.TestCase):
+    def setUp(self) -> None:
+        install_legacy_capability_fixture(self)
+
     def test_unmeasured_claims_are_omitted_and_recorded_as_no_go(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

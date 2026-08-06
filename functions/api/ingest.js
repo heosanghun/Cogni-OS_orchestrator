@@ -11,6 +11,8 @@ import {
   verifySignature,
 } from "../_lib/monitoring.js";
 
+const SCHEMA_RANK = Object.freeze({ "1.0": 100, "1.1": 101, "1.2": 102 });
+
 function databaseError(error) {
   const message = String(error?.message || error);
   if (/no such table/i.test(message)) {
@@ -210,22 +212,69 @@ export async function onRequest(context) {
   }
 
   const receivedAt = new Date().toISOString();
+  const schemaRank = SCHEMA_RANK[payload.schema_version];
+  if (!Number.isSafeInteger(schemaRank)) {
+    return errorResponse("INVALID_SNAPSHOT", "지원하지 않는 schema입니다.", 400);
+  }
   try {
     const results = await env.MONITOR_DB.batch([
+      env.MONITOR_DB.prepare(
+        `INSERT INTO monitor_schema_floors
+          (workspace_id, minimum_schema_rank, minimum_schema_version, updated_at)
+         SELECT ?1, ?2, ?3, ?4
+         WHERE ?5 > COALESCE(
+           (SELECT sequence FROM monitor_snapshots WHERE workspace_id = ?1),
+           0
+         )
+           AND ?2 >= COALESCE(
+             (SELECT minimum_schema_rank FROM monitor_schema_floors
+              WHERE workspace_id = ?1),
+             CASE json_extract(
+               (SELECT payload FROM monitor_snapshots WHERE workspace_id = ?1),
+               '$.schema_version'
+             )
+               WHEN '1.2' THEN 102
+               WHEN '1.1' THEN 101
+               WHEN '1.0' THEN 100
+               ELSE 0
+             END
+           )
+         ON CONFLICT(workspace_id) DO UPDATE SET
+           minimum_schema_rank = excluded.minimum_schema_rank,
+           minimum_schema_version = excluded.minimum_schema_version,
+           updated_at = excluded.updated_at
+         WHERE ?5 > COALESCE(
+           (SELECT sequence FROM monitor_snapshots WHERE workspace_id = ?1),
+           0
+         )
+           AND excluded.minimum_schema_rank >=
+             monitor_schema_floors.minimum_schema_rank`,
+      ).bind(
+        headers.workspaceId,
+        schemaRank,
+        payload.schema_version,
+        receivedAt,
+        headers.sequence,
+      ),
       env.MONITOR_DB.prepare(
         `INSERT INTO monitor_nonces
           (workspace_id, key_id, nonce, sequence, received_at)
          SELECT ?1, ?2, ?3, ?4, ?5
          WHERE ?4 > COALESCE(
-           (SELECT sequence FROM monitor_snapshots WHERE workspace_id = ?1),
-           0
-         )`,
+            (SELECT sequence FROM monitor_snapshots WHERE workspace_id = ?1),
+            0
+          )
+            AND ?6 >= (
+              SELECT minimum_schema_rank FROM monitor_schema_floors
+              WHERE workspace_id = ?1
+            )`,
       ).bind(
         headers.workspaceId,
         headers.keyId,
         headers.nonce,
         headers.sequence,
         receivedAt,
+        schemaRank,
       ),
       env.MONITOR_DB.prepare(
         `INSERT INTO monitor_history
@@ -233,9 +282,13 @@ export async function onRequest(context) {
            nonce, body_sha256, signature, payload)
          SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9
          WHERE ?2 > COALESCE(
-           (SELECT sequence FROM monitor_snapshots WHERE workspace_id = ?1),
-           0
-         )`,
+            (SELECT sequence FROM monitor_snapshots WHERE workspace_id = ?1),
+            0
+          )
+            AND ?10 >= (
+              SELECT minimum_schema_rank FROM monitor_schema_floors
+              WHERE workspace_id = ?1
+            )`,
       ).bind(
         headers.workspaceId,
         headers.sequence,
@@ -246,6 +299,7 @@ export async function onRequest(context) {
         bodySha256,
         headers.signature,
         rawBody,
+        schemaRank,
       ),
       env.MONITOR_DB.prepare(
         `INSERT INTO monitor_snapshots
@@ -261,7 +315,11 @@ export async function onRequest(context) {
            body_sha256 = excluded.body_sha256,
            signature = excluded.signature,
            payload = excluded.payload
-         WHERE excluded.sequence > monitor_snapshots.sequence`,
+          WHERE excluded.sequence > monitor_snapshots.sequence
+            AND ?10 >= (
+              SELECT minimum_schema_rank FROM monitor_schema_floors
+              WHERE workspace_id = ?1
+            )`,
       ).bind(
         headers.workspaceId,
         headers.sequence,
@@ -272,6 +330,7 @@ export async function onRequest(context) {
         bodySha256,
         headers.signature,
         rawBody,
+        schemaRank,
       ),
       env.MONITOR_DB.prepare(
         `DELETE FROM monitor_history
@@ -289,8 +348,30 @@ export async function onRequest(context) {
            AND received_at < datetime('now', '-2 days')`,
       ).bind(headers.workspaceId),
     ]);
-    const latestWrite = results[2];
+    const latestWrite = results[3];
     if (Number(latestWrite?.meta?.changes || 0) !== 1) {
+      const floor = await env.MONITOR_DB.prepare(
+        `SELECT COALESCE(
+           (SELECT minimum_schema_rank FROM monitor_schema_floors
+            WHERE workspace_id = ?1),
+           CASE json_extract(
+             (SELECT payload FROM monitor_snapshots WHERE workspace_id = ?1),
+             '$.schema_version'
+           )
+             WHEN '1.2' THEN 102
+             WHEN '1.1' THEN 101
+             WHEN '1.0' THEN 100
+             ELSE 0
+           END
+         ) AS minimum_schema_rank`,
+      ).bind(headers.workspaceId).first();
+      if (Number(floor?.minimum_schema_rank || 0) > schemaRank) {
+        return errorResponse(
+          "SCHEMA_DOWNGRADE_REJECTED",
+          "이 workspace에서 이미 관측된 schema보다 낮은 버전은 허용되지 않습니다.",
+          409,
+        );
+      }
       return errorResponse(
         "STALE_SEQUENCE",
         "현재 저장된 sequence보다 큰 스냅샷만 허용됩니다.",

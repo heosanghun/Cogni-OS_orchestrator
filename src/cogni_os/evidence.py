@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
+import json
 import math
+import os
 import re
 from pathlib import Path
 from typing import Any
 
 from .errors import EvidenceError
-from .util import is_relative_to, read_json, sha256_file
+from .util import is_relative_to, sha256_file
 
 SECTION_RE = re.compile(r"^##\s+([1-6])(?:[.)]|\s)", re.MULTILINE)
 REQUIRED_SECTION_NUMBERS = {"1", "2", "3", "4", "5", "6"}
@@ -29,6 +32,67 @@ PLACEHOLDER_VALUES = {
     "unknown",
     "unmeasured",
 }
+MAX_MANIFEST_BYTES = 4 * 1024 * 1024
+
+
+def _stat_identity(value: os.stat_result) -> tuple[int, int, int, int]:
+    """Return the fields used to detect replacement or mutation during a read."""
+
+    return (
+        int(value.st_dev),
+        int(value.st_ino),
+        int(value.st_size),
+        int(value.st_mtime_ns),
+    )
+
+
+def _read_manifest_once(manifest_path: Path) -> tuple[dict[str, Any], str]:
+    """Read, hash, and parse one bounded immutable view of a manifest.
+
+    Parsing and the returned digest are deliberately derived from the same byte
+    buffer.  File-descriptor and path metadata are compared after the read so a
+    concurrent in-place edit or atomic replacement fails closed.
+    """
+
+    try:
+        with manifest_path.open("rb") as handle:
+            before = os.fstat(handle.fileno())
+            if before.st_size > MAX_MANIFEST_BYTES:
+                raise EvidenceError(
+                    "Evidence manifest exceeds the "
+                    f"{MAX_MANIFEST_BYTES}-byte limit"
+                )
+            content = handle.read(MAX_MANIFEST_BYTES + 1)
+            after = os.fstat(handle.fileno())
+        path_after = manifest_path.stat()
+    except EvidenceError:
+        raise
+    except OSError as exc:
+        raise EvidenceError(
+            f"Evidence manifest could not be read safely: {manifest_path}: {exc}"
+        ) from exc
+
+    if len(content) > MAX_MANIFEST_BYTES:
+        raise EvidenceError(
+            f"Evidence manifest exceeds the {MAX_MANIFEST_BYTES}-byte limit"
+        )
+    if (
+        len(content) != before.st_size
+        or _stat_identity(before) != _stat_identity(after)
+        or _stat_identity(after) != _stat_identity(path_after)
+    ):
+        raise EvidenceError("Evidence manifest changed while it was being read")
+
+    try:
+        decoded = content.decode("utf-8")
+        manifest = json.loads(decoded)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise EvidenceError(
+            f"Evidence manifest is not valid UTF-8 JSON: {manifest_path}: {exc}"
+        ) from exc
+    if not isinstance(manifest, dict):
+        raise EvidenceError("Evidence manifest must be a JSON object")
+    return manifest, hashlib.sha256(content).hexdigest()
 
 
 def validate_report(path: Path) -> dict[str, Any]:
@@ -132,7 +196,7 @@ def validate_manifest(
         )
     if not manifest_path.is_file():
         raise EvidenceError(f"Evidence manifest does not exist: {manifest_path}")
-    manifest = read_json(manifest_path)
+    manifest, manifest_sha256 = _read_manifest_once(manifest_path)
     _reject_non_finite(manifest)
     _reject_placeholders(manifest)
     if manifest.get("schema_version") != 1:
@@ -298,7 +362,7 @@ def validate_manifest(
 
     return {
         "manifest_path": str(manifest_path.resolve()),
-        "manifest_sha256": sha256_file(manifest_path),
+        "manifest_sha256": manifest_sha256,
         "artifacts": artifact_results,
         "validations": validation_results,
         "known_answer_checks": known_checks,

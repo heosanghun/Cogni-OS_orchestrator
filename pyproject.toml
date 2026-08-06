@@ -16,6 +16,8 @@ dependencies = []
 [project.scripts]
 cogni = "cogni_os.cli:main"
 cognios = "cogni_os.cli:main"
+cogni-snapshot-broker = "cogni_os.snapshot_broker:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+exclude = ["cogni_os.tests", "cogni_os.tests.*"]

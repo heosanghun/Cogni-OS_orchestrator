@@ -7,17 +7,22 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 
-from cogni_os.cli import build_parser
 from cogni_os.doctor import audit_workspace
 from cogni_os.errors import AuthorizationError, TransitionError
 from cogni_os.independence import audit_verification_events, identity_snapshot
 from cogni_os.model import transition
+from cogni_os.tests._actor_capability_test_support import (
+    install_legacy_capability_fixture,
+)
 from cogni_os.util import atomic_write_json, utc_now
 from cogni_os.workspace import Workspace
+
+from cogni_os.cli import build_parser
 
 
 class VerificationRestatementTests(unittest.TestCase):
     def setUp(self) -> None:
+        install_legacy_capability_fixture(self)
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.workspace = Workspace.initialize(
@@ -215,7 +220,11 @@ class VerificationRestatementTests(unittest.TestCase):
         self.assertTrue(claims["valid"])
         self.assertEqual(claims["release_blockers"], ["T-001"])
         self.assertEqual(
-            claims["claims"][0]["effective_state"],
+            claims["claims"][0]["historical_state"],
+            "verification_disputed",
+        )
+        self.assertEqual(
+            claims["claims"][0]["current_release_state"],
             "verification_disputed",
         )
 

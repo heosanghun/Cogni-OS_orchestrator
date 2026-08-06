@@ -18,21 +18,28 @@ for import_root in (ROOT, SRC):
     if str(import_root) not in sys.path:
         sys.path.insert(0, str(import_root))
 
-from cogni_os.errors import EvidenceError  # noqa: E402
-from cogni_os.trusted_runner import (  # noqa: E402
+from cogni_os.errors import EvidenceError
+from cogni_os.tests._actor_capability_test_support import (
+    install_legacy_capability_fixture,
+)
+from cogni_os.tests._isolation_test_support import install_direct_isolation_fixture
+from cogni_os.trust_projection import task_trust_state
+from cogni_os.trusted_runner import (
     _trusted_environment,
     _validate_command_argv,
     run_trusted_validations,
 )
-from cogni_os.workspace import Workspace  # noqa: E402
-from scripts.publish_monitor_snapshot import (  # noqa: E402
+from cogni_os.workspace import Workspace
+from scripts.publish_monitor_snapshot import (
     export_tasks,
     task_summary,
-    task_trust_state,
 )
 
 
 class ReleaseAuditRegressionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        install_legacy_capability_fixture(self)
+
     def test_trusted_gpu_visibility_is_bounded_to_physical_zero_through_five(
         self,
     ) -> None:
@@ -88,13 +95,17 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                 {"NVIDIA_VISIBLE_DEVICES": "0,1,2,3,4,5,6"},
             )
             for environment in ambiguous_environments:
-                with self.subTest(environment=environment), patch.dict(
-                    os.environ,
-                    environment,
-                    clear=True,
-                ), self.assertRaisesRegex(
-                    EvidenceError,
-                    r"(?i)(GPU|device|remap|numeric|duplicate)",
+                with (
+                    self.subTest(environment=environment),
+                    patch.dict(
+                        os.environ,
+                        environment,
+                        clear=True,
+                    ),
+                    self.assertRaisesRegex(
+                        EvidenceError,
+                        r"(?i)(GPU|device|remap|numeric|duplicate)",
+                    ),
                 ):
                     _trusted_environment(
                         workspace_root=workspace,
@@ -167,12 +178,18 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                     task_id="T-DIRTY-SOURCE",
                     attempt=1,
                     actor="codex",
+                    run_id="1" * 32,
                     manifest=manifest,
                     gpu_allowed=False,
                     network_allowed=False,
                 )
 
     def test_trusted_runner_rejects_source_mutation_during_validation(self) -> None:
+        # Production Windows runners correctly fail before execution because no
+        # supported OS isolation backend is available.  This regression needs
+        # to reach the post-execution mutation guard, so install the scoped
+        # test-only isolation adapter without adding a production bypass.
+        install_direct_isolation_fixture(self)
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
             source_path = workspace / "source.txt"
@@ -209,9 +226,28 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                 capture_output=True,
             )
             output = b"validation passed\n"
-            with self.assertRaisesRegex(
-                EvidenceError,
-                r"(?i)(postcheck|dirty|changed|source)",
+
+            def mutate_host_source(**kwargs: object) -> dict[str, object]:
+                output_path = Path(str(kwargs["output_path"]))
+                output_path.write_bytes(output)
+                source_path.write_text("tampered\n", encoding="utf-8")
+                return {
+                    "exit_code": 0,
+                    "timed_out": False,
+                    "output_truncated": False,
+                    "start_error": None,
+                    "duration_ms": 1.0,
+                }
+
+            with (
+                patch(
+                    "cogni_os.trusted_runner._run_bounded_command",
+                    side_effect=mutate_host_source,
+                ),
+                self.assertRaisesRegex(
+                    EvidenceError,
+                    r"(?i)(postcheck|dirty|changed|source)",
+                ),
             ):
                 run_trusted_validations(
                     workspace_root=workspace,
@@ -219,7 +255,9 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                     task_id="T-SOURCE-MUTATION",
                     attempt=1,
                     actor="codex",
+                    run_id="2" * 32,
                     manifest={
+                        "manifest_sha256": "a" * 64,
                         "validations": [
                             {
                                 "command_argv": [
@@ -231,7 +269,7 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                                     "sha256": hashlib.sha256(output).hexdigest(),
                                 },
                             }
-                        ]
+                        ],
                     },
                     gpu_allowed=False,
                     network_allowed=False,
@@ -277,6 +315,7 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                 encoding="utf-8",
             )
             manifest = {
+                "manifest_sha256": "a" * 64,
                 "validations": [
                     {
                         "command_argv": [
@@ -288,12 +327,12 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                             "sha256": hashlib.sha256(output).hexdigest(),
                         },
                     }
-                ]
+                ],
             }
 
             with self.assertRaisesRegex(
                 EvidenceError,
-                r"(?i)(untracked|source|executable|operational|provenance)",
+                r"(?i)(untracked|source|executable|operational|provenance|isolation)",
             ):
                 run_trusted_validations(
                     workspace_root=workspace,
@@ -301,6 +340,7 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                     task_id="T-UNTRACKED-EXECUTABLE",
                     attempt=1,
                     actor="codex",
+                    run_id="3" * 32,
                     manifest=manifest,
                     gpu_allowed=False,
                     network_allowed=False,
@@ -363,9 +403,12 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                     "reports.test_untracked",
                 ],
             ):
-                with self.subTest(argv=argv), self.assertRaisesRegex(
-                    EvidenceError,
-                    r"(?i)(tracked|source|path|pytest|operational)",
+                with (
+                    self.subTest(argv=argv),
+                    self.assertRaisesRegex(
+                        EvidenceError,
+                        r"(?i)(tracked|source|path|pytest|operational)",
+                    ),
                 ):
                     _validate_command_argv(workspace, argv)
 
@@ -399,8 +442,7 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
             committed_test = workspace / "tests" / "safe.test.mjs"
             committed_test.parent.mkdir()
             committed_test.write_text(
-                "import test from 'node:test';\n"
-                "test('safe', () => {});\n",
+                "import test from 'node:test';\ntest('safe', () => {});\n",
                 encoding="utf-8",
             )
             preload = workspace / "reports" / "preload.cjs"
@@ -438,9 +480,12 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                 f"--import={preload}",
                 f"--loader={preload}",
             ):
-                with self.subTest(option=option), self.assertRaisesRegex(
-                    EvidenceError,
-                    r"(?i)(node option|allowlist|preload|loader)",
+                with (
+                    self.subTest(option=option),
+                    self.assertRaisesRegex(
+                        EvidenceError,
+                        r"(?i)(node option|allowlist|preload|loader)",
+                    ),
                 ):
                     _validate_command_argv(
                         workspace,
@@ -630,9 +675,7 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
                         "artifacts": [
                             {
                                 "path": str(outside_artifact),
-                                "sha256": hashlib.sha256(
-                                    outside_bytes
-                                ).hexdigest(),
+                                "sha256": hashlib.sha256(outside_bytes).hexdigest(),
                             }
                         ],
                         "validations": [

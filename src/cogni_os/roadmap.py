@@ -7,9 +7,8 @@ from copy import deepcopy
 from typing import Any
 
 from .errors import ConfigurationError
-from .trust_projection import task_trust_state
+from .trust_projection import task_trust_projection
 from .workspace import Workspace
-
 
 _STRICT_GATES = {
     "require_validation": True,
@@ -303,10 +302,16 @@ def bootstrap_roadmap(
     workspace: Workspace,
     *,
     actor: str,
+    capability_secret: str | bytes | None = None,
     owner: str = "antigravity",
 ) -> dict[str, Any]:
     """Idempotently register the canonical Phase 1-11 task graph."""
 
+    workspace.authorize_actor_capability(
+        actor=actor,
+        operation="roadmap.bootstrap",
+        capability_secret=capability_secret,
+    )
     created: list[str] = []
     existing: list[str] = []
     for contract in phase_contracts(owner):
@@ -316,6 +321,7 @@ def bootstrap_roadmap(
         except ConfigurationError:
             workspace.add_task(
                 actor=actor,
+                capability_secret=capability_secret,
                 task_id=task_id,
                 title=contract["title"],
                 description=contract["description"],
@@ -396,17 +402,19 @@ def roadmap_status(workspace: Workspace) -> dict[str, Any]:
         task = tasks_by_id.get(contract["id"])
         if task is None:
             state = "missing"
-        elif current_commit is None and task.get("state") in {
-            "verified",
-            "archived",
-        }:
-            state = "verification_disputed"
+            current_release_state = "missing"
+            current_release_validated = False
+            verified_source_commit = None
         else:
-            state = task_trust_state(
+            trust = task_trust_projection(
                 task,
                 current_commit=current_commit,
                 workspace_root=workspace.root,
             )
+            state = str(trust["historical_state"])
+            current_release_state = str(trust["current_release_state"])
+            current_release_validated = bool(trust["current_release_validated"])
+            verified_source_commit = trust["verified_source_commit"]
         complete = state in {"verified", "archived"}
         if complete:
             trusted_complete += 1
@@ -416,6 +424,9 @@ def roadmap_status(workspace: Workspace) -> dict[str, Any]:
                 "title": contract["title"],
                 "state": state,
                 "trusted_complete": complete,
+                "verified_source_commit": verified_source_commit,
+                "current_release_state": current_release_state,
+                "current_release_validated": current_release_validated,
                 "prerequisites": contract["prerequisites"],
             }
         )
@@ -431,6 +442,12 @@ def roadmap_snapshot(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     for contract in phase_contracts():
         task = tasks_by_id.get(contract["id"])
         state = str(task.get("state", "missing")) if task else "missing"
+        current_release_state = (
+            str(task.get("current_release_state", state)) if task else "missing"
+        )
+        current_release_validated = (
+            bool(task.get("current_release_validated", False)) if task else False
+        )
         complete = state in {"verified", "archived"}
         if complete:
             trusted_complete += 1
@@ -440,6 +457,11 @@ def roadmap_snapshot(tasks: list[dict[str, Any]]) -> dict[str, Any]:
                 "title": contract["title"],
                 "state": state,
                 "trusted_complete": complete,
+                "verified_source_commit": (
+                    task.get("verified_source_commit") if task else None
+                ),
+                "current_release_state": current_release_state,
+                "current_release_validated": current_release_validated,
                 "prerequisites": contract["prerequisites"],
             }
         )
@@ -450,11 +472,15 @@ def _roadmap_projection(
     phases: list[dict[str, Any]],
     trusted_complete: int,
 ) -> dict[str, Any]:
+    current_release_validated = sum(
+        bool(phase.get("current_release_validated")) for phase in phases
+    )
     return {
         "schema_version": 1,
         "total": len(phases),
         "trusted_complete": trusted_complete,
+        "current_release_validated": current_release_validated,
         "progress_percent": round(trusted_complete * 100 / len(phases), 1),
-        "progress_basis": "trusted-roadmap-task-states",
+        "progress_basis": "historically-trusted-roadmap-task-states",
         "phases": phases,
     }

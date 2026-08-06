@@ -49,6 +49,13 @@ const formatTime = (value) => {
 };
 const shortHash = (value) =>
   typeof value === "string" && value.length >= 12 ? `${value.slice(0, 12)}…` : "—";
+const urlHost = (value) => {
+  try {
+    return new URL(value).hostname || "—";
+  } catch {
+    return "—";
+  }
+};
 
 let latestSnapshot = null;
 let latestHistory = [];
@@ -95,7 +102,9 @@ function evidenceSafeView(raw) {
       submitted: 0,
       trusted_verified: 0,
       verification_disputed: 0,
+      verification_revoked: 0,
       rejected: 0,
+      current_release_validated: 0,
       completion_percentage: null,
       progress_basis: "unavailable",
     },
@@ -103,6 +112,7 @@ function evidenceSafeView(raw) {
       schema_version: 1,
       total: 11,
       trusted_complete: 0,
+      current_release_validated: 0,
       progress_percent: null,
       progress_basis: "unavailable",
       phases: [],
@@ -121,8 +131,20 @@ function evidenceSafeView(raw) {
     gpu_policy: {
       allowed_ids: [0, 1, 2, 3, 4, 5],
       denied_ids: [6, 7],
-      telemetry_state: state === "STALE" ? "STALE" : "UNAVAILABLE",
+      telemetry_state: "UNMEASURED",
       violating_ids: [],
+      measurement_complete: false,
+      source_states: {
+        telemetry: "UNAVAILABLE",
+        processes: "UNAVAILABLE",
+        containers: "UNAVAILABLE",
+        scheduler: "UNAVAILABLE",
+      },
+      evidence_counts: {
+        processes: 0,
+        container_claims: 0,
+        scheduler_reservations: 0,
+      },
     },
     resources: {},
     release_gate: {
@@ -130,6 +152,7 @@ function evidenceSafeView(raw) {
       reasons: [reason],
       evidence_sha256: null,
     },
+    release_deployment: null,
     source: { git_commit: "unknown" },
     alerts:
       alerts.length > 0
@@ -272,7 +295,7 @@ function renderKpis(data) {
   text(
     "kpi-verified-note",
     live
-      ? `Phase ${roadmap.trusted_complete ?? 0} / ${roadmap.total ?? 11} · 검증 분쟁 ${summary.verification_disputed ?? 0}`
+      ? `Historical ${roadmap.trusted_complete ?? 0} / ${roadmap.total ?? 11} · Current release ${roadmap.current_release_validated ?? 0}`
       : "LIVE 증거 대기",
   );
 
@@ -280,12 +303,13 @@ function renderKpis(data) {
   const gpuAverage = gpus.length
     ? gpus.reduce((sum, gpu) => sum + (finite(gpu.utilization) || 0), 0) / gpus.length
     : null;
-  text("kpi-gpu", live ? formatPercent(gpuAverage) : null);
+  const gpuMeasured = data.gpu_policy?.measurement_complete === true;
+  text("kpi-gpu", live && gpuMeasured ? formatPercent(gpuAverage) : null);
   text(
     "kpi-gpu-note",
-    live && gpus.length
+    live && gpuMeasured && gpus.length
       ? `${gpus.filter((gpu) => gpu.utilization > 0).length} / ${gpus.length} 활성`
-      : `텔레메트리 ${data.gpu_policy?.telemetry_state || "UNAVAILABLE"}`,
+      : `GPU 증거 ${data.gpu_policy?.telemetry_state || "UNMEASURED"} · release NO_GO`,
   );
 
   const disk = data.resources?.disk || {};
@@ -348,7 +372,11 @@ function renderLedger(data) {
     "activity-submitted",
     events.filter((event) => event.action === "task.submitted").length,
   );
-  text("activity-disputed", data.tasks_summary?.verification_disputed ?? 0);
+  text(
+    "activity-disputed",
+    (data.tasks_summary?.verification_disputed ?? 0) +
+      (data.tasks_summary?.verification_revoked ?? 0),
+  );
   if (!feed) return;
   const items = events.slice(0, 60).map((event) => {
     const item = create(
@@ -456,7 +484,7 @@ function renderGpus(data) {
   setEmpty("gpu-empty", "gpu-list", gpus.length === 0);
   text(
     "gpu-policy",
-    `GPU 0~5 ${data.gpu_policy?.telemetry_state || "UNAVAILABLE"} · GPU 6·7 DENIED`,
+    `GPU 0~5 ${data.gpu_policy?.measurement_complete === true ? "FULLY MEASURED" : "UNMEASURED · NO_GO"} · GPU 6·7 DENIED`,
   );
   if (!list) return;
   const cards = gpus.map((gpu) => {
@@ -500,7 +528,16 @@ function renderTasks(data) {
     );
     const stateCell = document.createElement("td");
     stateCell.append(
-      create("span", `agent-badge ${badgeClass(task.state)}`, task.state),
+      create(
+        "span",
+        `agent-badge ${badgeClass(task.current_release_state)}`,
+        `current: ${task.current_release_state}`,
+      ),
+      create(
+        "small",
+        "task-id",
+        ` historical: ${task.historical_state}`,
+      ),
     );
     [
       taskCell,
@@ -527,6 +564,36 @@ function renderResources(data) {
   const uptime = finite(resources.uptime_seconds);
   text("system-uptime", uptime === null ? null : `${Math.floor(uptime / 86400)}일`);
   text("source-commit", shortHash(data.source?.git_commit));
+  text(
+    "collector-commit",
+    shortHash(data.collector?.attribution?.source_commit),
+  );
+  text("deployment-attribution", data.deployment?.attribution);
+  text("deployment-commit", shortHash(data.deployment?.source_commit));
+  text("deployment-id", data.release_deployment?.deployment_id);
+  text(
+    "deployment-direct-url",
+    urlHost(data.release_deployment?.deployment_url || data.deployment?.deployment_url),
+  );
+  const operationalChanges = finite(
+    data.source?.operational_state?.change_count,
+  );
+  text(
+    "operational-change-count",
+    operationalChanges === null ? null : `${operationalChanges} files`,
+  );
+  text(
+    "evidence-reference-count",
+    finite(data.source?.operational_state?.reference_count),
+  );
+  text(
+    "evidence-conflict-count",
+    finite(data.source?.operational_state?.conflict_count),
+  );
+  text(
+    "evidence-missing-count",
+    finite(data.source?.operational_state?.missing_count),
+  );
 }
 
 function renderAlerts(data) {
@@ -649,7 +716,7 @@ async function refreshSnapshot() {
       ledger_events: [],
       ledger: { valid: false, events: 0 },
       gpus: [],
-      gpu_policy: { telemetry_state: "UNAVAILABLE" },
+      gpu_policy: { telemetry_state: "UNMEASURED", measurement_complete: false },
       resources: {},
       alerts: [
         {
@@ -660,6 +727,7 @@ async function refreshSnapshot() {
         },
       ],
       release_gate: { status: "NO_GO", reasons: ["모니터링 연결 실패"] },
+      release_deployment: null,
       source: { git_commit: "unknown" },
     });
   } finally {

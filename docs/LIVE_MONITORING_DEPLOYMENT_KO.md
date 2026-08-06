@@ -59,7 +59,7 @@ COGNI-SNAPSHOT-V2
 
 publisher는 다음 운영 메타데이터만 외부 관제 채널에 전송합니다.
 
-- task ID, 제목, 담당, 상태, 시각
+- task ID, 정식 Phase 공개 라벨, 담당 agent ID, 상태, 시각
 - P01~P11의 신뢰 상태와 `trusted_complete / 11` 기반 진행률
 - 검증 신뢰 상태와 원장 head hash
 - 실행 주체의 공개 상태 및 attestation 여부
@@ -69,22 +69,26 @@ publisher는 다음 운영 메타데이터만 외부 관제 채널에 전송합�
 
 프롬프트, 고객 데이터, 모델 입출력, 소스 내용, 환경 변수, 비밀키,
 파일 내용, 제어 명령은 전송하지 않습니다. 공개 API는 Cogni-Core로
-명령을 전달하는 경로를 제공하지 않습니다.
+명령을 전달하는 경로를 제공하지 않습니다. 사용자가 입력한 task 제목·설명,
+workspace 고객명, agent의 자유문장 현재 작업명도 공개 payload에 싣지 않습니다.
 
 ## Cloudflare D1 준비
 
 실제 Cloudflare 계정에서 데이터베이스를 생성하고 반환된 실제 ID만
-`wrangler.toml`의 주석 처리된 `d1_databases` 블록에 입력합니다.
+`wrangler.toml`의 `d1_databases` 블록에 입력합니다.
 binding 이름은 반드시 `MONITOR_DB`여야 합니다.
 
 ```powershell
 npx wrangler d1 create cogni-os-monitoring
-npx wrangler d1 execute cogni-os-monitoring `
-  --remote `
-  --file migrations/0001_monitoring.sql
+npx wrangler d1 migrations list cogni-os-monitoring --remote
+npx wrangler d1 migrations apply cogni-os-monitoring --remote
 ```
 
-스키마 적용 뒤 `key_id` 열과 필수 index를 확인합니다.
+위 명령은 `migrations/0001_monitoring.sql`과
+`migrations/0002_monitoring_schema_floor.sql`을 순서대로 적용합니다. protected
+production 환경에서 이 단계와 아래 probe가 성공하기 전에는 Pages 함수를
+배포하거나 publisher를 재시작하지 않습니다. 스키마 적용 뒤 `key_id` 열,
+필수 index, schema floor 테이블을 확인합니다.
 
 ```powershell
 npx wrangler d1 execute cogni-os-monitoring --remote `
@@ -95,6 +99,10 @@ npx wrangler d1 execute cogni-os-monitoring --remote `
   --command "PRAGMA table_info(monitor_nonces);"
 npx wrangler d1 execute cogni-os-monitoring --remote `
   --command "PRAGMA index_list(monitor_history);"
+npx wrangler d1 execute cogni-os-monitoring --remote `
+  --command "PRAGMA table_info(monitor_schema_floors);"
+npx wrangler d1 execute cogni-os-monitoring --remote `
+  --command "SELECT name FROM sqlite_schema WHERE name = 'monitor_schema_floors';"
 ```
 
 `0001_monitoring.sql`은 신규 데이터베이스 기준입니다. 이미 V1 테이블이
@@ -107,8 +115,7 @@ D1으로 교체합니다. V1 행은 V2 서명으로 재검증할 수 없으므�
 로컬/CI에서는 Python 표준 `sqlite3`로 동일 migration을 검증합니다.
 
 ```powershell
-$env:PYTHONPATH = "$PWD\src"
-python -m unittest discover -s src\cogni_os\tests -p "test_monitoring_migration.py" -v
+python -I scripts\validate_monitoring_migrations.py
 ```
 
 ## Pages binding과 encrypted keyring
@@ -120,6 +127,26 @@ Pages 프로젝트에는 다음 설정이 필요합니다.
 - variable: `COGNI_WORKSPACE_ID`
 - variable: `MAX_SNAPSHOT_AGE_SECONDS=180`
 - variable: `MAX_CLOCK_SKEW_SECONDS=300`
+- build command: `npm run build`
+- build output directory: `public`
+
+`npm run build`는 Cloudflare Pages 빌드 환경의
+`CF_PAGES_COMMIT_SHA`를 `functions/_lib/deployment.generated.js`에
+결합합니다. Cloudflare가 제공하는 `CF_PAGES=1`, production branch
+`CF_PAGES_BRANCH=main`, 40자리 `CF_PAGES_COMMIT_SHA`, 해당 프로젝트의 HTTPS
+`CF_PAGES_URL`이 모두 일치하지 않으면 Pages 빌드는 실패합니다. 이 URL은
+canonical alias가 아니라 해당 배포에만 속하는 고유
+`*.cogni-os-orchestrator.pages.dev` URL이어야 합니다. preview
+branch나 다른 Pages 프로젝트는 production 산출물로 승격되지 않습니다.
+로컬이나 commit을 알 수 없는 환경에서 생성한 파일은
+의도적으로 `build_bound=false`이며 릴리스 증거가 될 수 없습니다.
+
+`CF_PAGES_PROJECT_NAME`은 Cloudflare Pages의 기본 주입 변수가 아니므로
+사용하지 않습니다. 프로젝트 정체성은 고유 `CF_PAGES_URL`의 엄격한 host
+검사로 결정합니다. GitHub Actions의 synthetic attribution 검사는 이 형식의
+단위 테스트일 뿐 실제 배포 증거가 아닙니다. 실제 완료 판정은 Cloudflare
+project API의 canonical deployment ID·direct URL·source commit과 production
+health/snapshot을 별도로 수집해 일치시킨 경우에만 가능합니다.
 
 키링 JSON은 interactive secret 입력으로 등록합니다. 아래 명령 실행 뒤
 프롬프트에 JSON 한 줄을 붙여 넣고, 실제 값을 파일에 저장하지 않습니다.
@@ -135,28 +162,24 @@ secret이나 가짜 D1 ID를 커밋하지 않습니다.
 
 ## publisher 실행
 
-Cloudflare keyring의 한 항목과 동일한 `key_id`/secret을 운영 호스트의
-환경 변수에 설정합니다. 두 변수 중 하나라도 없거나 형식이 틀리면
-PowerShell 래퍼는 네트워크 요청 전에 중단합니다.
+운영 publisher는 `python`, `git`, `powershell`을 `PATH`로 찾거나
+`PYTHONPATH`, `PYTHONHOME`, `COGNI_PYTHON`으로 교체하지 않습니다. 직접
+Python을 호출하는 예시는 개발 진단용일 뿐 운영 증거가 아닙니다. 운영
+설치에는 다음 부트스트랩 경계가 먼저 필요합니다.
 
-```powershell
-$env:COGNI_MONITOR_KEY_ID = "publisher-2026q3"
-$env:COGNI_MONITOR_INGEST_SECRET = "<matching-32-256-char-secret>"
-$env:PYTHONPATH = "$PWD\src"
-python -B scripts\publish_monitor_snapshot.py . `
-  --key-id $env:COGNI_MONITOR_KEY_ID `
-  --include-gpu `
-  --interval-seconds 15
-```
+- 소스와 PowerShell bootstrap 파일 전체 경로가 SYSTEM, Administrators 또는
+  TrustedInstaller 소유이고 일반 사용자·활성 비관리자 그룹이 쓸 수 없을 것
+- 모든 경로 구성 요소가 non-reparse이고 실행 직전 SHA-256 재검사를 통과할 것
+- Windows PowerShell, Git, Python은 코드에 고정된 관리자 소유 절대 경로일 것
+- DPAPI용 `.runtime` 부모는 운영 사용자가 소유한 실제 디렉터리로 사전
+  생성할 것. 스크립트가 임의 부모나 junction을 생성하지 않음
 
-PowerShell 래퍼:
-
-```powershell
-$env:COGNI_MONITOR_KEY_ID = "publisher-2026q3"
-$env:COGNI_MONITOR_INGEST_SECRET = "<matching-32-256-char-secret>"
-$env:COGNI_PYTHON = "C:\Path\To\python.exe"
-.\scripts\run_monitor_publisher.ps1 -WorkspaceRoot $PWD -IncludeGpu
-```
+따라서 사용자 쓰기 가능한 checkout에서 운영 래퍼를 실행하면 secret을
+읽기 전에 의도적으로 `NO_GO`입니다. 먼저 검증된 commit을 관리자 소유의
+불변 배포 루트에 설치하고, 허용된 `C:\Program Files\Python312\python.exe`
+또는 `C:\Program Files\Python310\python.exe`를 준비합니다. secret 회전은
+Cloudflare keyring과 같은 값을 한 세션의 환경 변수로 전달해 DPAPI로
+봉인한 뒤 즉시 환경 변수를 제거합니다.
 
 운영 PC에서는 평문 환경 변수를 장기 저장하지 않고, 현재 Windows
 사용자와 PC에 묶인 DPAPI `SecureString`을
@@ -193,7 +216,7 @@ DPAPI `SecureString` 파일 경로만 전달합니다.
 
 자동복구 계약은 다음과 같습니다.
 
-- Task Scheduler의 `AtLogOn`, `StartWhenAvailable`, 1분 재시작 정책
+- Task Scheduler의 `AtLogOn`, `StartWhenAvailable`, crash 재시작 정책
 - Task Scheduler `IgnoreNew`와 Python OS file lock의 이중 단일 인스턴스
 - 프로세스 비정상 종료·재부팅 시 OS가 자동 해제하는 instance lock
 - 연속 실패 시 게시 주기부터 최대 300초까지 지수 backoff
@@ -201,6 +224,25 @@ DPAPI `SecureString` 파일 경로만 전달합니다.
 - `.runtime/monitor-publisher/monitor_publisher_runtime.json` 원자적 상태 파일
 - DPAPI 복호화 실패, 다른 사용자/PC 파일, reparse point, 비정상 크기를
   모두 네트워크 요청 전에 fail-closed 처리
+- 시작할 때 orchestrator 저장소가 clean HEAD인지 확인하고 canonical
+  `/api/health`가 HTTP 200, `CONFIGURED`, storage `READY`, `BUILD_BOUND`, 동일
+  source commit, `minimum_release_snapshot_schema=1.2`,
+  `operational_ingest_ready=true`인지 확인
+- 위 production preflight가 하나라도 실패하면 Python publisher를 실행하지
+  않고 로컬 wrapper journal에 bounded 오류만 기록
+
+여기서 `BUILD_BOUND`와 `operational_ingest_ready=true`는 schema 1.2 signed
+snapshot을 수집할 수 있다는 뜻일 뿐 릴리스 완료가 아닙니다. health의
+`release_attribution_ready`는 API 증거를 HTTP 응답 자체가 자체 승인하지
+못하도록 항상 `false`, `release_evidence_state=API_EVIDENCE_REQUIRED`로
+유지합니다. 릴리스 승격은 별도 read-only Cloudflare project API에서 현재
+production deployment ID, direct URL, commit을 수집해 content-addressed
+archive와 signed ledger에 결합하고 재검증한 뒤에만 가능합니다.
+
+따라서 과거 schema 1.0 publisher 예약 작업이 단순히 `Running`이거나 재시작
+횟수가 많다는 사실은 준비 완료 증거가 아닙니다. D1 migration, 새 Pages 배포,
+production health probe를 먼저 완료하고 같은 clean commit에서 예약 작업을
+재설치·재시작합니다. 구 publisher를 새 서버 검증 전에 자동 재시작하지 않습니다.
 
 publisher의 `PYTHONPATH`는 감시 대상 workspace의 `src`가 아니라 이
 orchestrator 저장소의 `src`로 고정됩니다. 따라서 `C:\comunity`가 운영
@@ -301,6 +343,8 @@ $env:PYTHONPATH = "$PWD\src"
 python -m unittest discover -s src\cogni_os\tests -v
 npm run check
 npm test
+node scripts\validate_p01_node.mjs
+.\scripts\validate_p01_powershell.ps1
 ```
 
 배포 후 확인:
@@ -317,6 +361,42 @@ npm test
 10. D1 또는 전체 keyring 제거 시 화면이 `UNCONFIGURED`
 11. 최신 행의 key를 제거하면 `CORRUPT`
 12. old/new overlap 회전 뒤 새 key의 최신 행이 `LIVE`
+
+운영 원장·태스크·보고서가 갱신되는 것은 정상이며 소스 변경과 분리해
+표시합니다. `source.change_count`는 소스 변경만,
+`source.operational_state.change_count`는 검증 대상 운영 증거 변경만
+셉니다. `source.git_commit`과 `collector.attribution.source_commit`이
+일치하지 않거나 운영 변경에 미분류 파일이 있으면 새 스냅샷은
+릴리스 `PASS` 증거로 승격되지 않습니다. 서명 자체가 유효한 스냅샷은
+`LIVE`로 보일 수 있어도 `release_gate`는 반드시 `NO_GO`를 유지합니다.
+`reports/`와 `runs/`는 항상 변경 가능한 staging일 뿐 릴리스 진실이
+아닙니다. `submissions/`와 `archive/` 아래 파일도 단순히 안전한 폴더에
+있다는 이유로 신뢰하지 않습니다. signed ledger의 제출·검증·거절
+사건에 동일 경로와 SHA-256이 결합되어야 하며, 실행 가능한 확장자,
+미결합 파일, hash 불일치가 하나라도 있으면 operational state는
+`valid=false`입니다.
+
+Cloudflare 응답의 `deployment` 객체는 publisher 입력이 아니라 서버가
+추가합니다. 정확한 production Pages 빌드가 생성한 불변 모듈과 signed
+snapshot의 commit이 같을 때만 `BUILD_BOUND`입니다. 런타임 변수나 요청
+payload가 주장하는 commit은 배포 귀속으로 사용하지 않으며 모두
+`UNAVAILABLE`로 닫힙니다. 이 상태를 임의 커밋으로 채우거나 `PASS`로
+승격하지 않습니다.
+
+schema `1.0`과 `1.1`은 무중단 전환 중 읽기·표시 호환만 제공합니다. 신규
+provenance 게이트가 없는 legacy snapshot은 `PASS`를 주장할 수 없습니다.
+Phase 1의 배포 증거는 schema `1.2`, `LIVE`, `signature_verified=true`, clean
+source, ledger-bound operational state, `BUILD_BOUND` commit을 모두 요구합니다.
+또한 Cloudflare project API가 가리키는 현재 production deployment ID와
+고유 deployment URL이 응답의 `release_deployment` 및 빌드 귀속과 정확히
+일치해야 합니다. 같은 commit의 다른 deployment도 `NO_GO`입니다.
+
+GPU `PASS`는 `nvidia-smi` telemetry만으로 만들지 않습니다. telemetry,
+compute process, Docker DeviceRequests, Slurm/예약 증거 네 소스가 모두
+`MEASURED`여야 합니다. 어느 하나가 disabled, unavailable, 생략이면 공개
+상태는 `UNMEASURED`이고 릴리스는 `NO_GO`입니다. GPU 6·7은 0% 또는 19 MiB로
+보이더라도 PID, container claim, scheduler reservation 중 하나라도 있으면
+`POLICY_VIOLATION`입니다.
 
 ## 현재 공개 배포의 교정
 

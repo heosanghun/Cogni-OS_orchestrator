@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/generate_deployment_attribution.mjs",
     "test": "node --test tests/web/*.test.mjs",
-    "check": "node --check public/assets/app.js && node --check functions/_lib/monitoring.js && node --check functions/api/health.js && node --check functions/api/ingest.js && node --check functions/api/snapshot.js && node --check functions/api/history.js"
+    "check": "node --check public/assets/app.js && node --check functions/_lib/deployment.generated.js && node --check functions/_lib/monitoring.js && node --check functions/api/health.js && node --check functions/api/ingest.js && node --check functions/api/snapshot.js && node --check functions/api/history.js && node --check scripts/generate_deployment_attribution.mjs && node --check scripts/validate_p01_node.mjs"
   }
 }

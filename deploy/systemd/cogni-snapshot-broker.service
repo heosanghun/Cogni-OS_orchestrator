@@ -1,0 +1,29 @@
+[Unit]
+Description=Cogni-OS privileged committed-snapshot FD broker
+After=local-fs.target
+Before=cogni-os.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/opt/cogni-os/snapshot-broker-v1/venv/bin/python -I -m cogni_os.snapshot_broker serve
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectSystem=strict
+ProtectHome=read-only
+InaccessiblePaths=-/usr/bin/git -/usr/lib/git-core -/usr/libexec/git-core
+ReadWritePaths=/run/cogni-os
+RuntimeDirectory=cogni-os
+RuntimeDirectoryMode=0755
+UMask=0007
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

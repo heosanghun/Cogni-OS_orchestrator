@@ -8,10 +8,12 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from .errors import CogniError, ConfigurationError
+from .actor_capability import authority_for_workspace
+from .errors import ConfigurationError
 from .independence import audit_verification_events
 from .model import lease_expired
-from .trust_projection import task_trust_state
+from .trust_projection import task_trust_projection
+from .verification_lifecycle import audit_verification_runs
 from .workspace import Workspace
 
 LEGACY_REQUIRED = (
@@ -228,8 +230,7 @@ def audit_workspace(
         expired = [
             task["id"]
             for task in workspace.list_tasks()
-            if task["state"] in {"claimed", "running"}
-            and lease_expired(task)
+            if task["state"] in {"claimed", "running"} and lease_expired(task)
         ]
         result["checks"]["expired_leases"] = expired
         broker_secret_findings: list[dict[str, Any]] = []
@@ -240,7 +241,9 @@ def audit_workspace(
         ):
             broker_secret_findings.extend(_scan_secrets(path))
         result["checks"]["secret_findings"] = broker_secret_findings
-        events = workspace.ledger.read()
+        events = workspace.ledger.read_verified()
+        verification_lifecycle = audit_verification_runs(events)
+        result["checks"]["verification_lifecycle"] = verification_lifecycle
         agents = {agent["id"]: agent for agent in workspace.list_agents()}
         verification_audit = audit_verification_events(
             events,
@@ -250,13 +253,22 @@ def audit_workspace(
         result["checks"]["verification_semantics"] = verification_audit
 
         latest_verification = {
-            item["task_id"]: item
-            for item in verification_audit["verifications"]
+            item["task_id"]: item for item in verification_audit["verifications"]
         }
         current_commit = _current_commit(workspace.root)
         current_claims: list[dict[str, Any]] = []
         unacknowledged_claims: list[str] = []
         release_blockers: list[str] = []
+        capability_posture = authority_for_workspace(workspace).status(
+            actor=workspace.orchestrator
+        )
+        result["checks"]["actor_capability"] = capability_posture
+        if capability_posture["state"] != "provisioned":
+            release_blockers.append("CAPABILITY_UNPROVISIONED")
+        elif not capability_posture.get(
+            "actor_os_isolation_proven", False
+        ) or not capability_posture.get("independent_trust_root", False):
+            release_blockers.append("CAPABILITY_UNATTESTED")
         for task in workspace.list_tasks():
             raw_state = str(task.get("state", "pending"))
             if raw_state not in {"verified", "archived"}:
@@ -268,29 +280,38 @@ def audit_workspace(
                 else None
             )
             if isinstance(restatement, dict):
-                effective_state = str(restatement["effective_status"])
+                historical_state = str(restatement["effective_status"])
+                current_release_state = historical_state
+                verified_source_commit = None
                 acknowledged = True
-            elif current_commit is None:
-                effective_state = "verification_disputed"
-                acknowledged = False
             else:
-                effective_state = task_trust_state(
+                trust = task_trust_projection(
                     task,
                     current_commit=current_commit,
                     workspace_root=workspace.root,
                 )
-                acknowledged = effective_state in {"verified", "archived"}
-            trusted = effective_state in {"verified", "archived"}
-            if not trusted:
+                historical_state = str(trust["historical_state"])
+                current_release_state = str(trust["current_release_state"])
+                verified_source_commit = trust["verified_source_commit"]
+                acknowledged = historical_state in {"verified", "archived"}
+            historical_trusted = historical_state in {"verified", "archived"}
+            current_release_validated = current_release_state in {
+                "verified",
+                "archived",
+            }
+            if not current_release_validated:
                 release_blockers.append(task["id"])
-                if not acknowledged:
-                    unacknowledged_claims.append(task["id"])
+            if not historical_trusted and not acknowledged:
+                unacknowledged_claims.append(task["id"])
             current_claims.append(
                 {
                     "task_id": task["id"],
                     "recorded_state": raw_state,
-                    "effective_state": effective_state,
-                    "trusted": trusted,
+                    "historical_state": historical_state,
+                    "historical_trusted": historical_trusted,
+                    "verified_source_commit": verified_source_commit,
+                    "current_release_state": current_release_state,
+                    "current_release_validated": current_release_validated,
                     "restated": isinstance(restatement, dict),
                 }
             )
@@ -305,11 +326,12 @@ def audit_workspace(
         result["healthy"] = (
             projection["valid"]
             and not broker_secret_findings
+            and verification_lifecycle["valid"]
             and verification_audit["valid"]
             and not unacknowledged_claims
         )
         result["release_ready"] = result["healthy"] and not release_blockers
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - diagnostics must fail closed
         result["error"] = str(exc)
         result["healthy"] = False
 
