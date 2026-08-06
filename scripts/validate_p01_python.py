@@ -47,9 +47,9 @@ PRODUCTION_ENDPOINTS = {
 }
 CLOUDFLARE_PROJECT = "cogni-os-orchestrator"
 MAX_EVIDENCE_BYTES = 2 * 1024 * 1024
-EXPECTED_PYTHON_TESTS = 263
+EXPECTED_PYTHON_TESTS = 290
 EXPECTED_TEST_INVENTORY_SHA256 = (
-    "add5699c0cf7ea90c6b29b8478d7c65289a37b76a41b359135c29ae4f9688d95"
+    "8da3591f044e01910bd7df1dd2d68b52677ee4f3923298fe51a45210e039b39c"
 )
 T001_ORIGINAL_SEQUENCE = 9
 T001_ORIGINAL_HASH = "fefc108428d76fa50ddb254e463c58e7e19849145c9f309bbc856fb84de83a78"
@@ -1250,9 +1250,9 @@ def _cloudflare_raw_result(
         or metadata["tls_policy"] != "python-default-ca"
         or not isinstance(headers, dict)
         or set(headers) - SELECTED_HEADERS
-        or not str(headers.get("content-type", "")).lower().startswith(
-            "application/json"
-        )
+        or not str(headers.get("content-type", ""))
+        .lower()
+        .startswith("application/json")
         or metadata["body_sha256"] != _sha256(body)
         or metadata["body_size_bytes"] != len(body)
     ):

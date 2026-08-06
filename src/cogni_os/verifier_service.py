@@ -14,9 +14,10 @@ import hmac
 import os
 import stat
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Final
+from typing import Any, Final
 
 from .verifier_journal import (
     CLEANUP_ACKED,
@@ -50,6 +51,28 @@ class VerifierServiceError(VerifierProtocolError):
     """The minimal verifier service state link failed closed."""
 
 
+def _bounded_receipt_entry_names(root: int | Path) -> set[str]:
+    """Scan no more than the fixed store limit plus one entry."""
+
+    names: set[str] = set()
+    try:
+        entries = os.scandir(root)
+        with entries:
+            for entry in entries:
+                if len(names) >= MAX_RECEIPT_STORE_ENTRIES:
+                    raise VerifierServiceError(
+                        "Verifier receipt store exceeds its entry limit"
+                    )
+                names.add(entry.name)
+    except VerifierServiceError:
+        raise
+    except OSError as exc:
+        raise VerifierServiceError(
+            "Verifier receipt store cannot be enumerated"
+        ) from exc
+    return names
+
+
 def _validate_posix_receipt_root_policy(
     metadata: Any,
     ancestor_metadata: tuple[Any, ...],
@@ -74,9 +97,7 @@ def _validate_posix_receipt_root_policy(
         or ancestor.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
         for ancestor in ancestor_metadata
     ):
-        raise VerifierServiceError(
-            "Verifier receipt ancestry is not owner-protected"
-        )
+        raise VerifierServiceError("Verifier receipt ancestry is not owner-protected")
 
 
 def _validate_posix_receipt_root_identity(
@@ -177,7 +198,9 @@ class DedicatedVerifierService:
                 run_id=request["run_id"],
             )
         except VerifierJournalError as exc:
-            raise VerifierServiceError("Verifier dispatch journal claim failed") from exc
+            raise VerifierServiceError(
+                "Verifier dispatch journal claim failed"
+            ) from exc
 
     def persist_receipt(
         self,
@@ -200,7 +223,9 @@ class DedicatedVerifierService:
         try:
             record = self.journal.load(dispatch_hash)
         except (FileNotFoundError, VerifierJournalError) as exc:
-            raise VerifierServiceError("Verifier receipt has no claimed dispatch") from exc
+            raise VerifierServiceError(
+                "Verifier receipt has no claimed dispatch"
+            ) from exc
         expected_identity = (
             request["task_id"],
             request["attempt"],
@@ -255,7 +280,9 @@ class DedicatedVerifierService:
             or stat.S_ISLNK(metadata.st_mode)
             or bool(attributes & reparse)
         ):
-            raise VerifierServiceError("Verifier receipt store is not a plain directory")
+            raise VerifierServiceError(
+                "Verifier receipt store is not a plain directory"
+            )
         if os.name != "posix":
             return
         ancestors: list[Any] = []
@@ -301,11 +328,12 @@ class DedicatedVerifierService:
 
     def _persist_exact(self, path: Path, encoded: bytes) -> bool:
         self._require_receipt_root_identity()
-        if self._receipt_dir_fd is not None:
-            names = os.listdir(self._receipt_dir_fd)
-        else:
-            names = [entry.name for entry in self.receipt_root.iterdir()]
-        if path.name not in set(names) and len(names) >= MAX_RECEIPT_STORE_ENTRIES:
+        names = _bounded_receipt_entry_names(
+            self._receipt_dir_fd
+            if self._receipt_dir_fd is not None
+            else self.receipt_root
+        )
+        if path.name not in names and len(names) >= MAX_RECEIPT_STORE_ENTRIES:
             raise VerifierServiceError("Verifier receipt store exceeds its entry limit")
         flags = os.O_RDWR | os.O_CREAT | os.O_EXCL
         if hasattr(os, "O_BINARY"):
@@ -333,9 +361,7 @@ class DedicatedVerifierService:
                 if self._receipt_dir_fd is None:
                     path_metadata = path.stat(follow_symlinks=False)
                     path_attributes = getattr(path_metadata, "st_file_attributes", 0)
-                    path_reparse = getattr(
-                        stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400
-                    )
+                    path_reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
                     if stat.S_ISLNK(path_metadata.st_mode) or bool(
                         path_attributes & path_reparse
                     ):
@@ -446,7 +472,9 @@ class DedicatedVerifierService:
         try:
             metadata = self.receipt_root.stat(follow_symlinks=False)
         except OSError as exc:
-            raise VerifierServiceError("Verifier receipt root path is unavailable") from exc
+            raise VerifierServiceError(
+                "Verifier receipt root path is unavailable"
+            ) from exc
         _validate_posix_receipt_root_identity(
             metadata,
             expected_identity=self._receipt_dir_identity,
@@ -466,8 +494,7 @@ class DedicatedVerifierService:
         ):
             raise OSError("new verifier receipt identity is unsafe")
         if os.name == "posix" and (
-            metadata.st_uid != os.geteuid()
-            or stat.S_IMODE(metadata.st_mode) != 0o600
+            metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) != 0o600
         ):
             raise OSError("new verifier receipt ownership or mode is unsafe")
 
@@ -500,5 +527,7 @@ class DedicatedVerifierService:
                 egid=os.getegid(),
             )
         except VerifierServiceError as exc:
-            raise OSError("Verifier receipt dirfd identity or protection changed") from exc
+            raise OSError(
+                "Verifier receipt dirfd identity or protection changed"
+            ) from exc
         os.fsync(self._receipt_dir_fd)

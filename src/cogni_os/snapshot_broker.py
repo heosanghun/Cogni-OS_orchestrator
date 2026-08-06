@@ -186,6 +186,25 @@ def _write_all(descriptor: int, content: bytes) -> None:
         offset += written
 
 
+def _bounded_sorted_directory_names(source_descriptor: int) -> list[str]:
+    """Enumerate at most the fixed tree bound before deterministic sorting."""
+
+    names: list[str] = []
+    try:
+        entries = os.scandir(source_descriptor)
+        with entries:
+            for entry in entries:
+                if len(names) >= MAX_SOURCE_TREE_NODE_COUNT:
+                    raise SnapshotBrokerError("Caller source directory is unbounded")
+                names.append(entry.name)
+    except SnapshotBrokerError:
+        raise
+    except OSError as exc:
+        raise SnapshotBrokerError("Caller source cannot be enumerated") from exc
+    names.sort()
+    return names
+
+
 def _copy_sealed_source_descriptor(
     source_descriptor: int,
     snapshot_path: Path,
@@ -240,12 +259,7 @@ def _copy_sealed_source_descriptor(
         nonlocal total_bytes
         before = os.fstat(source)
         _require_sealed_source_entry(before, caller_uid=caller_uid, directory=True)
-        try:
-            names = sorted(os.listdir(source))
-        except OSError as exc:
-            raise SnapshotBrokerError("Caller source cannot be enumerated") from exc
-        if len(names) > MAX_SOURCE_TREE_NODE_COUNT:
-            raise SnapshotBrokerError("Caller source directory is unbounded")
+        names = _bounded_sorted_directory_names(source)
         for name in names:
             if not isinstance(name, str) or name in {"", ".", ".."} or "/" in name:
                 raise SnapshotBrokerError("Caller source contains an unsafe name")
@@ -354,10 +368,7 @@ def _copy_sealed_source_descriptor(
                 if destination_file >= 0:
                     os.close(destination_file)
                 os.close(source_file)
-        try:
-            names_after = sorted(os.listdir(source))
-        except OSError as exc:
-            raise SnapshotBrokerError("Caller source postcheck failed") from exc
+        names_after = _bounded_sorted_directory_names(source)
         if names_after != names or _source_identity(
             os.fstat(source)
         ) != _source_identity(before):
@@ -416,7 +427,7 @@ def _remove_committed_snapshot(snapshot_root: Path) -> None:
 
     def remove_directory(descriptor: int) -> None:
         os.fchmod(descriptor, 0o700)
-        for name in os.listdir(descriptor):
+        for name in _bounded_sorted_directory_names(descriptor):
             metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
             if metadata.st_uid != 0:
                 raise SnapshotBrokerError(
@@ -767,48 +778,53 @@ class _NonceReplayStore:
         if not self.root.exists():
             return
         scanned = 0
+        uid_directories = 0
         with os.scandir(self.root) as uid_iterator:
-            uid_entries = list(uid_iterator)
-        if len(uid_entries) > MAX_NONCE_UID_DIRECTORIES:
-            raise SnapshotBrokerError("Snapshot nonce UID directory limit reached")
-        for uid_entry in uid_entries:
-            if not uid_entry.is_dir(follow_symlinks=False):
-                raise SnapshotBrokerError(
-                    "Snapshot nonce root contains an unsafe entry"
-                )
-            uid_root = Path(uid_entry.path)
-            descriptor = _open_posix_directory_nofollow(uid_root)
-            try:
-                with os.scandir(uid_root) as iterator:
-                    for entry in iterator:
-                        scanned += 1
-                        if scanned > MAX_REPLAY_FILES_SCANNED:
-                            raise SnapshotBrokerError(
-                                "Snapshot nonce prune bound exceeded"
-                            )
-                        if not entry.is_file(follow_symlinks=False):
-                            raise SnapshotBrokerError(
-                                "Snapshot nonce store contains a non-file"
-                            )
+            for uid_entry in uid_iterator:
+                uid_directories += 1
+                if uid_directories > MAX_NONCE_UID_DIRECTORIES:
+                    raise SnapshotBrokerError(
+                        "Snapshot nonce UID directory limit reached"
+                    )
+                if not uid_entry.is_dir(follow_symlinks=False):
+                    raise SnapshotBrokerError(
+                        "Snapshot nonce root contains an unsafe entry"
+                    )
+                uid_root = Path(uid_entry.path)
+                descriptor = _open_posix_directory_nofollow(uid_root)
+                try:
+                    with os.scandir(uid_root) as iterator:
+                        for entry in iterator:
+                            scanned += 1
+                            if scanned > MAX_REPLAY_FILES_SCANNED:
+                                raise SnapshotBrokerError(
+                                    "Snapshot nonce prune bound exceeded"
+                                )
+                            if not entry.is_file(follow_symlinks=False):
+                                raise SnapshotBrokerError(
+                                    "Snapshot nonce store contains a non-file"
+                                )
+                            try:
+                                value = (
+                                    Path(entry.path).read_text(encoding="ascii").strip()
+                                )
+                                expired = int(value) + 5 < now
+                            except (OSError, UnicodeError, ValueError) as exc:
+                                raise SnapshotBrokerError(
+                                    "Snapshot nonce state is malformed"
+                                ) from exc
+                            if expired:
+                                os.unlink(entry.name, dir_fd=descriptor)
+                    with os.scandir(uid_root) as remaining:
+                        empty = next(remaining, None) is None
+                    if empty:
+                        parent = _open_posix_directory_nofollow(self.root)
                         try:
-                            value = Path(entry.path).read_text(encoding="ascii").strip()
-                            expired = int(value) + 5 < now
-                        except (OSError, UnicodeError, ValueError) as exc:
-                            raise SnapshotBrokerError(
-                                "Snapshot nonce state is malformed"
-                            ) from exc
-                        if expired:
-                            os.unlink(entry.name, dir_fd=descriptor)
-                with os.scandir(uid_root) as remaining:
-                    empty = next(remaining, None) is None
-                if empty:
-                    parent = _open_posix_directory_nofollow(self.root)
-                    try:
-                        os.rmdir(uid_root.name, dir_fd=parent)
-                    finally:
-                        os.close(parent)
-            finally:
-                os.close(descriptor)
+                            os.rmdir(uid_root.name, dir_fd=parent)
+                        finally:
+                            os.close(parent)
+                finally:
+                    os.close(descriptor)
 
 
 def _send_frame_with_descriptor(

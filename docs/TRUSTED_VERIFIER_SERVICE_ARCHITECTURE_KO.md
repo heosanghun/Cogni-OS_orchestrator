@@ -160,19 +160,28 @@ read-only snapshot `/workspace`와 per-run scratch 외의 writable 경로를
 - 구현됨(경계 모듈): `src/cogni_os/ledger_authority_v2.py`의 exact Ed25519 v2
   envelope, canonical SPKI `key_id`, `ledger_id`, 키 영역 분리, full-chain 현재
   head 전용 signed dispatch 검증 API
+- 구현됨(portable 경계): `src/cogni_os/ledger_authority_store_v2.py`의 별도
+  Ed25519 v2 로그, 삭제 없는 hash-chained PREPARE/COMMIT journal, 필수 `tx_id`,
+  멱등 재조정, ledger+journal 고정 checkpoint. HMAC v1 원장은 열거나 바꾸지 않는다.
+- 구현됨(portable 경계): `src/cogni_os/retained_git.py`의 self-contained bundle
+  verify/list-heads/unbundle/fsck, exact commit/tree 및 전체 object inventory 검증,
+  content-addressed manifest. 공개 API는 명령 실행기나 자원 상한 override를 받지 않는다.
 - 미구현: Ledger Authority append daemon·키 설치/회전, HMAC v1 원장의 실제
-  bounded-byte audit-only migration, durable log/checkpoint,
+  bounded-byte audit-only migration, monotonic checkpoint registry,
   `workspace.py`·trust projection·release gate terminal/supersession v2 전환
-- 미구현: Git bundle object graph·commit/tree 검증과 retained-only materialization
+- 미구현: 검증된 quarantine object store만 사용하는 exact-tree materialization
 - 미구현: 실제 고정 명령 실행, snapshot broker 연동, bwrap child 격리
 - 미구현: `deploy/systemd/cogni-verifier.socket`
 - 미구현: `deploy/systemd/cogni-verifier.service`
 - 미구현: `scripts/install_verifier_service.sh`
 - 미검증: Ubuntu root/systemd/dirfd/bwrap/Ed25519 무-skip E2E
 
-현재 휴대형 단위 테스트 통과는 위 운영 항목의 대체 증거가 아니다. 특히
-`retained_source.py`는 바이트 보존과 재해시만 보장하며, Git object graph나
-commit/tree 진위를 확인하거나 checkout을 생성하지 않는다.
+현재 휴대형 단위 테스트 통과는 위 운영 항목의 대체 증거가 아니다.
+`retained_git.py`는 import 전에 bundle 바이트 상한을 적용하고 import 뒤 object
+graph 상한을 검사하지만, 적대적 pack의 압축 해제 CPU·RAM·디스크를 OS 수준으로
+사전 제한하지는 못한다. 따라서 root-owned immutable store와 allowlisted Git,
+systemd/cgroup 및 quarantine filesystem quota E2E가 입증될 때까지
+`release_ready=false`이고 object graph 전체 bounded 주장을 하지 않는다.
 
 기존 `workspace.py`, `verification_lifecycle.py`, `trust_projection.py`,
 `release_gate.py`, `release_evidence.py`는 이 프로토콜을 요구하도록

@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Self
 from unittest.mock import patch
 
 from cogni_os.snapshot_broker_protocol import (
@@ -49,6 +50,7 @@ from cogni_os.verifier_receipt import (
 from cogni_os.verifier_service import (
     DedicatedVerifierService,
     VerifierServiceError,
+    _bounded_receipt_entry_names,
     _validate_posix_receipt_root_identity,
     _validate_posix_receipt_root_policy,
 )
@@ -231,6 +233,35 @@ def _pem_bytes(label: str, der: bytes, *, newline: bytes = b"\n") -> bytes:
 
 
 class VerifierServiceProtocolTests(unittest.TestCase):
+    def test_receipt_inventory_stops_at_limit_plus_one(self) -> None:
+        class BoundedEntries:
+            def __init__(self) -> None:
+                self.consumed = 0
+                self.closed = False
+
+            def __enter__(self) -> Self:
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                self.closed = True
+
+            def __iter__(self) -> BoundedEntries:
+                return self
+
+            def __next__(self) -> SimpleNamespace:
+                self.consumed += 1
+                return SimpleNamespace(name=f"receipt-{self.consumed}")
+
+        entries = BoundedEntries()
+        with (
+            patch("cogni_os.verifier_service.MAX_RECEIPT_STORE_ENTRIES", 4),
+            patch("cogni_os.verifier_service.os.scandir", return_value=entries),
+            self.assertRaisesRegex(VerifierServiceError, "entry limit"),
+        ):
+            _bounded_receipt_entry_names(Path("unused"))
+        self.assertEqual(entries.consumed, 5)
+        self.assertTrue(entries.closed)
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(dir=Path.cwd())
         self.root = Path(self.temporary.name)
@@ -303,9 +334,7 @@ class VerifierServiceProtocolTests(unittest.TestCase):
         self.service.close()
         self.temporary.cleanup()
 
-    def _receipt(
-        self, dispatch: dict[str, object] | None = None
-    ) -> dict[str, object]:
+    def _receipt(self, dispatch: dict[str, object] | None = None) -> dict[str, object]:
         dispatch = _dispatch() if dispatch is None else dispatch
         preimage = _execution_preimage(dispatch)
         cleanup = _cleanup_proof(dispatch, canonical_json_sha256(preimage))
@@ -345,9 +374,7 @@ class VerifierServiceProtocolTests(unittest.TestCase):
         receipt = self._receipt(dispatch)
         verified = verify_verification_receipt(receipt, dispatch=dispatch)
         self.assertEqual(verified["domain"], "cogni-os.verification-receipt.v1")
-        self.assertEqual(
-            len(base64.b64decode(verified["execution_signature_b64"])), 64
-        )
+        self.assertEqual(len(base64.b64decode(verified["execution_signature_b64"])), 64)
         self.assertEqual(len(base64.b64decode(verified["final_signature_b64"])), 64)
         self.assertNotEqual(
             verified["execution_signature_b64"], verified["final_signature_b64"]
@@ -359,7 +386,9 @@ class VerifierServiceProtocolTests(unittest.TestCase):
             verify_verification_receipt(extra_field, dispatch=dispatch)
 
         tampered_signature = copy.deepcopy(receipt)
-        signature = bytearray(base64.b64decode(tampered_signature["final_signature_b64"]))
+        signature = bytearray(
+            base64.b64decode(tampered_signature["final_signature_b64"])
+        )
         signature[0] ^= 1
         tampered_signature["final_signature_b64"] = base64.b64encode(signature).decode(
             "ascii"
@@ -380,12 +409,10 @@ class VerifierServiceProtocolTests(unittest.TestCase):
     def test_rfc8032_known_answer_and_same_spki_key_separation(self) -> None:
         # RFC 8032 section 7.1, test vector 2 (one-byte message 0x72).
         seed = bytes.fromhex(
-            "4ccd089b28ff96da9db6c346ec114e0f"
-            "5b8a319f35aba624da8cf6ed4fb8a6fb"
+            "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
         )
         public = bytes.fromhex(
-            "3d4017c3e843895a92b70aa74d1b7ebc"
-            "9c982ccf2ec4968cc0cd55f12af4660c"
+            "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"
         )
         expected = bytes.fromhex(
             "92a009a9f0d4cab8720e820b5f642540"
@@ -435,18 +462,14 @@ class VerifierServiceProtocolTests(unittest.TestCase):
                 return_value=openssl_binding,
             ),
         ):
-            with self.assertRaisesRegex(
-                VerifierReceiptError, "distinct Ed25519 keys"
-            ):
+            with self.assertRaisesRegex(VerifierReceiptError, "distinct Ed25519 keys"):
                 trusted_receipt_verification_binding(
                     public_key_path=known_public,
                     openssl_path=self.openssl,
                     openssl_sha256_path=self.root / "unused.sha256",
                     snapshot_broker_public_key_path=broker_copy,
                 )
-            with self.assertRaisesRegex(
-                VerifierReceiptError, "distinct Ed25519 keys"
-            ):
+            with self.assertRaisesRegex(VerifierReceiptError, "distinct Ed25519 keys"):
                 trusted_receipt_signing_binding(
                     private_key_path=known_private,
                     public_key_path=known_public,
@@ -488,7 +511,9 @@ class VerifierServiceProtocolTests(unittest.TestCase):
                 preimage["commands"][0]["executable_path"] = invalid
                 preimage["commands"][0]["argv"][0] = invalid
                 cleanup = _cleanup_proof(dispatch, canonical_json_sha256(preimage))
-                with self.assertRaisesRegex(VerifierProtocolError, "Verifier executable"):
+                with self.assertRaisesRegex(
+                    VerifierProtocolError, "Verifier executable"
+                ):
                     sign_verification_receipt(
                         preimage,
                         cleanup,
@@ -565,7 +590,9 @@ class VerifierServiceProtocolTests(unittest.TestCase):
             egid=100,
         )
         swapped = SimpleNamespace(**{**vars(valid), "st_ino": 21})
-        with self.assertRaisesRegex(VerifierServiceError, "identity or protection changed"):
+        with self.assertRaisesRegex(
+            VerifierServiceError, "identity or protection changed"
+        ):
             _validate_posix_receipt_root_identity(
                 swapped,
                 expected_identity=expected,

@@ -11,6 +11,7 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Self
 from unittest.mock import MagicMock, patch
 
 from cogni_os.errors import EvidenceError
@@ -24,6 +25,8 @@ from cogni_os.snapshot_broker import (
     BrokerPaths,
     SnapshotBrokerClient,
     SnapshotBrokerDaemon,
+    _bounded_sorted_directory_names,
+    _NonceReplayStore,
     _receive_response_with_fd,
     _require_sealed_source_entry,
     _ServerLease,
@@ -98,6 +101,44 @@ def release_request() -> dict[str, object]:
 
 
 class SnapshotBrokerProtocolTests(unittest.TestCase):
+    def test_nonce_pruning_streams_uid_directories_without_materializing_them(
+        self,
+    ) -> None:
+        source = inspect.getsource(_NonceReplayStore._prune_expired)
+        self.assertNotIn("list(uid_iterator)", source)
+        self.assertIn("uid_directories > MAX_NONCE_UID_DIRECTORIES", source)
+
+    def test_directory_enumeration_stops_at_limit_plus_one_before_sorting(
+        self,
+    ) -> None:
+        class BoundedEntries:
+            def __init__(self) -> None:
+                self.consumed = 0
+                self.closed = False
+
+            def __enter__(self) -> Self:
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                self.closed = True
+
+            def __iter__(self) -> BoundedEntries:
+                return self
+
+            def __next__(self) -> SimpleNamespace:
+                self.consumed += 1
+                return SimpleNamespace(name=f"entry-{self.consumed:04d}")
+
+        entries = BoundedEntries()
+        with (
+            patch("cogni_os.snapshot_broker.MAX_SOURCE_TREE_NODE_COUNT", 4),
+            patch("cogni_os.snapshot_broker.os.scandir", return_value=entries),
+            self.assertRaisesRegex(SnapshotBrokerError, "directory is unbounded"),
+        ):
+            _bounded_sorted_directory_names(123)
+        self.assertEqual(entries.consumed, 5)
+        self.assertTrue(entries.closed)
+
     def test_default_daemon_construction_uses_fixed_paths(self) -> None:
         daemon = SnapshotBrokerDaemon()
         self.assertEqual(daemon.paths, BrokerPaths())
