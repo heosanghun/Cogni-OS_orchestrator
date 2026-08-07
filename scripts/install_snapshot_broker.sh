@@ -7,7 +7,7 @@ OPENSSL=/usr/bin/openssl
 SYSTEM_PYTHON=/usr/bin/python3
 STAGING_ROOT=/var/lib/cogni-os/snapshot-broker
 WHEEL="$STAGING_ROOT/cogni_os-1.0.0-py3-none-any.whl"
-RUNTIME_ROOT=/opt/cogni-os/snapshot-broker-v1
+RUNTIME_ROOT=/usr/local/lib/cogni-os/snapshot-broker-v1
 PYTHON="$RUNTIME_ROOT/venv/bin/python"
 KEY_ROOT=/etc/cogni-os/snapshot-broker
 PRIVATE_KEY="$KEY_ROOT/ed25519-private.pem"
@@ -52,7 +52,7 @@ if [ -e "$RUNTIME_ROOT" ] || [ -e "$PRIVATE_KEY" ] || [ -e "$PUBLIC_KEY" ] ||
   exit 1
 fi
 
-/usr/bin/install -d -o root -g root -m 0755 /opt/cogni-os
+/usr/bin/install -d -o root -g root -m 0755 /usr/local/lib/cogni-os
 /usr/bin/install -d -o root -g root -m 0755 "$RUNTIME_ROOT"
 "$SYSTEM_PYTHON" -I -m venv --copies "$RUNTIME_ROOT/venv"
 "$PYTHON" -I -m pip --isolated install \
@@ -109,7 +109,7 @@ Before=cogni-os.service
 Type=simple
 User=root
 Group=root
-ExecStart=/opt/cogni-os/snapshot-broker-v1/venv/bin/python -I -m cogni_os.snapshot_broker serve
+ExecStart=/usr/local/lib/cogni-os/snapshot-broker-v1/venv/bin/python -I -m cogni_os.snapshot_broker serve
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=yes

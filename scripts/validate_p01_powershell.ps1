@@ -775,7 +775,14 @@ try {
             throw 'The runner accepted plaintext CLIXML.'
         }
         if ($result.Output -notmatch 'does not contain a SecureString') {
-            throw 'The runner did not report the plaintext CLIXML type failure.'
+            $observed = ($result.Output -replace '[\r\n]+', ' ').Trim()
+            if ($observed.Length -gt 384) {
+                $observed = $observed.Substring(0, 384)
+            }
+            throw (
+                'The runner did not report the plaintext CLIXML type failure. ' +
+                'Observed: ' + $observed
+            )
         }
         if (Test-Path -LiteralPath $context.fake_marker) {
             throw 'Python was invoked after plaintext CLIXML rejection.'

@@ -748,12 +748,15 @@ class SnapshotBrokerProtocolTests(unittest.TestCase):
             "STAGING_ROOT=/var/lib/cogni-os/snapshot-broker",
             installer,
         )
-        self.assertIn("RUNTIME_ROOT=/opt/cogni-os/snapshot-broker-v1", installer)
+        self.assertIn(
+            "RUNTIME_ROOT=/usr/local/lib/cogni-os/snapshot-broker-v1",
+            installer,
+        )
         self.assertIn("for component in /var /var/lib /var/lib/cogni-os", installer)
         self.assertNotIn("$(pwd)", installer.lower())
         self.assertNotIn("$PWD", installer)
         entrypoint = (
-            "ExecStart=/opt/cogni-os/snapshot-broker-v1/venv/bin/python "
+            "ExecStart=/usr/local/lib/cogni-os/snapshot-broker-v1/venv/bin/python "
             "-I -m cogni_os.snapshot_broker serve"
         )
         self.assertIn(entrypoint, installer)

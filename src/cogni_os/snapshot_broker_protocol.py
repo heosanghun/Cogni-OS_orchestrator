@@ -35,7 +35,7 @@ BROKER_PRIVATE_KEY_PATH = Path("/etc/cogni-os/snapshot-broker/ed25519-private.pe
 BROKER_PUBLIC_KEY_PATH = Path("/etc/cogni-os/snapshot-broker/ed25519-public.pem")
 BROKER_OPENSSL_PATH = Path("/usr/bin/openssl")
 BROKER_OPENSSL_SHA256_PATH = Path("/etc/cogni-os/snapshot-broker/openssl.sha256")
-BROKER_RUNTIME_ROOT = Path("/opt/cogni-os/snapshot-broker-v1")
+BROKER_RUNTIME_ROOT = Path("/usr/local/lib/cogni-os/snapshot-broker-v1")
 BROKER_PYTHON_PATH = BROKER_RUNTIME_ROOT / "venv/bin/python"
 BROKER_RUNTIME_MANIFEST_PATH = Path("/etc/cogni-os/snapshot-broker/runtime.json")
 

@@ -33,7 +33,9 @@ def install_direct_isolation_fixture(testcase: Any) -> None:
         command_kind: str,
         supplied_value: str,
     ) -> dict[str, str]:
-        runtime = Path(supplied_value).resolve()
+        runtime = Path(supplied_value)
+        if not runtime.is_absolute():
+            raise AssertionError("test runtime binding must be absolute")
         return {
             "policy_id": trusted_runner.TRUSTED_RUNTIME_POLICY_ID,
             "kind": command_kind,

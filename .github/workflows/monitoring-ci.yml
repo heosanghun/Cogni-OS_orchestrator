@@ -154,7 +154,7 @@ jobs:
           for public_artifact in ed25519-public.pem openssl.sha256 runtime.json; do
             test "$(sudo stat -c '%u:%g:%a' "/etc/cogni-os/snapshot-broker/$public_artifact")" = '0:0:644'
           done
-          sudo /opt/cogni-os/snapshot-broker-v1/venv/bin/python -I -c \
+          sudo /usr/local/lib/cogni-os/snapshot-broker-v1/venv/bin/python -I -c \
             'import json,pathlib,sys; raw=pathlib.Path("/etc/cogni-os/snapshot-broker/runtime.json").read_text(); value=json.loads(raw); keys={"entry_module","package_root","package_tree_sha256","python_path","python_sha256","runtime_id","schema_version","wheel_sha256"}; safe=set(value)==keys and value["wheel_sha256"]==sys.argv[1] and not any(word in raw.lower() for word in ("private","secret","token","credential")); raise SystemExit(0 if safe else 1)' \
             "$WHEEL_SHA256"
           sudo /usr/sbin/useradd --create-home --shell /bin/bash cogni-ci
@@ -222,7 +222,7 @@ jobs:
               PHASE1_RELEASE_ELIGIBLE="$PHASE1_RELEASE_ELIGIBLE" \
               COGNI_RUN_ROOT_BROKER_INTEGRATION="$COGNI_RUN_ROOT_BROKER_INTEGRATION" \
               COGNI_BROKER_TEST_WORKSPACE=/home/cogni-ci/workspace \
-              /opt/cogni-os/snapshot-broker-v1/venv/bin/python -I \
+              /usr/local/lib/cogni-os/snapshot-broker-v1/venv/bin/python -I \
               /home/cogni-ci/workspace/scripts/validate_snapshot_broker_integration_inventory.py --run
 
       - name: Verify broker cleanup and retain Phase 1 NO-GO
@@ -258,7 +258,7 @@ jobs:
           sudo /usr/sbin/userdel --remove cogni-ci >/dev/null 2>&1
           sudo rm -rf -- \
             /run/cogni-os \
-            /opt/cogni-os/snapshot-broker-v1 \
+            /usr/local/lib/cogni-os/snapshot-broker-v1 \
             /etc/cogni-os/snapshot-broker \
             /var/lib/cogni-os/snapshot-broker
           sudo rm -f -- /etc/systemd/system/cogni-snapshot-broker.service

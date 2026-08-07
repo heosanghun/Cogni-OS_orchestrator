@@ -38,11 +38,11 @@
 - 먼저 `/var/lib/cogni-os/snapshot-broker/cogni_os.whl`에 root 소유,
   group/world 비쓰기 wheel을 별도로 staging해야 합니다. 현재 작업 디렉터리나
   actor 상대 경로에서는 root 설치하지 않습니다.
-- immutable runtime: `/opt/cogni-os/snapshot-broker-v1`; `--copies` venv의
+- immutable runtime: `/usr/local/lib/cogni-os/snapshot-broker-v1`; `--copies` venv의
   interpreter hash, package tree hash, wheel hash를 root-owned
   `/etc/cogni-os/snapshot-broker/runtime.json`에 canonical JSON으로 고정합니다.
 - systemd ExecStart는
-  `/opt/cogni-os/snapshot-broker-v1/venv/bin/python -I -m cogni_os.snapshot_broker serve`
+  `/usr/local/lib/cogni-os/snapshot-broker-v1/venv/bin/python -I -m cogni_os.snapshot_broker serve`
   로 고정됩니다.
 
 - private key: `/etc/cogni-os/snapshot-broker/ed25519-private.pem`,
