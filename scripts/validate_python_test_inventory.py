@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import re
 import sys
 import unittest
 from collections.abc import Iterator
@@ -30,6 +31,20 @@ def _iter_tests(suite: unittest.TestSuite) -> Iterator[unittest.TestCase]:
             yield from _iter_tests(item)
         else:
             yield item
+
+
+def _bounded_result_details(
+    entries: list[tuple[unittest.TestCase, str]],
+) -> list[dict[str, str]]:
+    """Expose a bounded terminal diagnostic without publishing full tracebacks."""
+
+    details: list[dict[str, str]] = []
+    for test, traceback_text in entries[:16]:
+        lines = [line.strip() for line in traceback_text.splitlines() if line.strip()]
+        terminal = lines[-1] if lines else "unknown test error"
+        terminal = re.sub(r"[\x00-\x1f\x7f]", " ", terminal)[:384]
+        details.append({"id": test.id(), "terminal": terminal})
+    return details
 
 
 def main() -> int:
@@ -62,7 +77,9 @@ def main() -> int:
         "errors": len(result.errors),
         "failures": len(result.failures),
         "error_ids": sorted(test.id() for test, _ in result.errors)[:16],
+        "error_details": _bounded_result_details(result.errors),
         "failure_ids": sorted(test.id() for test, _ in result.failures)[:16],
+        "failure_details": _bounded_result_details(result.failures),
         "skipped": len(result.skipped),
         "tests_run": result.testsRun,
         "inventory_sha256": inventory_sha256,

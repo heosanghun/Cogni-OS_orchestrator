@@ -702,10 +702,10 @@ test("deployment attribution is server-owned and fail-closed", () => {
     "BUILD_BOUND",
   );
   assert.equal(
-    deploymentAttribution({ CF_PAGES_COMMIT_SHA: commit }).attribution,
+    deploymentAttribution({ CF_PAGES_COMMIT_SHA: commit }, {}).attribution,
     "UNAVAILABLE",
   );
-  assert.equal(deploymentAttribution({}).attribution, "UNAVAILABLE");
+  assert.equal(deploymentAttribution({}, {}).attribution, "UNAVAILABLE");
 
   const claimedPass = {
     workspace_id: WORKSPACE,
@@ -736,7 +736,7 @@ test("deployment attribution is server-owned and fail-closed", () => {
   };
   const downgraded = bindDeploymentTruth(
     claimedPass,
-    deploymentAttribution({ CF_PAGES_COMMIT_SHA: commit }),
+    deploymentAttribution({ CF_PAGES_COMMIT_SHA: commit }, {}),
   );
   assert.equal(downgraded.release_gate.status, "NO_GO");
   assert.equal(downgraded.release_gate.evidence_sha256, null);
