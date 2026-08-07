@@ -184,7 +184,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo -u cogni-ci git clone --no-local --no-checkout "$GITHUB_WORKSPACE" /home/cogni-ci/workspace
+          sudo /usr/bin/git -c safe.directory="$GITHUB_WORKSPACE" clone \
+            --bare --no-local "$GITHUB_WORKSPACE" \
+            /var/lib/cogni-os/snapshot-broker/source.git
+          sudo /bin/chown -R root:root /var/lib/cogni-os/snapshot-broker/source.git
+          sudo /usr/bin/find /var/lib/cogni-os/snapshot-broker/source.git \
+            -type d -exec /bin/chmod 0555 {} +
+          sudo /usr/bin/find /var/lib/cogni-os/snapshot-broker/source.git \
+            -type f -exec /bin/chmod 0444 {} +
+          sudo -u cogni-ci git clone --no-local --no-checkout \
+            /var/lib/cogni-os/snapshot-broker/source.git \
+            /home/cogni-ci/workspace
           sudo -u cogni-ci git -C /home/cogni-ci/workspace checkout --detach "$GITHUB_SHA"
           test "$(sudo -u cogni-ci git -C /home/cogni-ci/workspace rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$(sudo -u cogni-ci git -C /home/cogni-ci/workspace status --porcelain=v1 --untracked-files=all)"

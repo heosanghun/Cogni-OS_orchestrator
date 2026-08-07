@@ -186,6 +186,9 @@ class ReleaseGateTestCase(unittest.TestCase):
             operation="release.evidence.collect",
             capability_secret=None,
             require_actor_os_isolation=True,
+            task_id=P01_TASK_ID,
+            run_id=None,
+            task_attempt=attempt,
         )
         values = {
             "production-health-body": ("production_health.body.json", {"ok": True}),

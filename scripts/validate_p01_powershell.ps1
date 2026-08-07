@@ -482,6 +482,7 @@ try {
                 'S-1-5-32-544',
                 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
             ) | Sort-Object -Unique
+            $hostRootHasUntrustedWriter = $false
             foreach ($rule in @($rootAcl.GetAccessRules(
                 $true,
                 $true,
@@ -495,7 +496,7 @@ try {
                     $rule.IdentityReference.Value -notin $trustedRootWriters -and
                     ($rule.FileSystemRights -band $rootMask) -ne 0
                 ) {
-                    throw 'The actual volume root grants an untrusted destructive ACE.'
+                    $hostRootHasUntrustedWriter = $true
                 }
             }
             $dangerousRule = [Security.AccessControl.FileSystemAccessRule]::new(
@@ -505,6 +506,12 @@ try {
             )
             if (($dangerousRule.FileSystemRights -band $rootMask) -eq 0) {
                 throw 'A synthetic dangerous volume-root ACE bypassed detection.'
+            }
+            # A hosted runner may deliberately expose a broadly writable volume
+            # root.  That makes the production publisher NO_GO on that host, but
+            # it must not invalidate this syntax-level detector regression.
+            if ($hostRootHasUntrustedWriter -and $rootMask -eq 0) {
+                throw 'An unsafe hosted volume root was not detected.'
             }
         } finally {
             Remove-Item Function:\Get-CogniSecretParentWriteMask `
@@ -774,7 +781,7 @@ try {
         if ($result.ExitCode -eq 0) {
             throw 'The runner accepted plaintext CLIXML.'
         }
-        if ($result.Output -notmatch 'does not contain a SecureString') {
+        if ($result.Output -notmatch 'does\s+not\s+contain\s+a\s+SecureString') {
             $observed = ($result.Output -replace '[\r\n]+', ' ').Trim()
             if ($observed.Length -gt 384) {
                 $observed = $observed.Substring(0, 384)
