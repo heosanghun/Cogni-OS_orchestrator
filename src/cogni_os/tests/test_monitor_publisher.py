@@ -34,6 +34,7 @@ from scripts.publish_monitor_snapshot import (
     PublisherInstanceLock,
     _configure_production_runtime,
     _run_capped_command,
+    _validate_ingest_acknowledgement,
     append_runtime_journal,
     audit_operational_evidence,
     build_snapshot,
@@ -48,12 +49,46 @@ from scripts.publish_monitor_snapshot import (
     next_sequence,
     peek_next_sequence,
     process_is_alive,
+    publish,
     release_gate,
     sanitize_error,
     signature_message,
     validate_publish_endpoint,
     wait_for_supervisor,
 )
+
+
+class _FakePublisherResponse:
+    def __init__(self, body: bytes, *, body_sha256: str, sequence: int = 17):
+        self.status = 202
+        self.headers = {
+            "X-Cogni-Sequence": str(sequence),
+            "X-Cogni-Body-SHA256": body_sha256,
+        }
+        self.body = body
+        self.read_limit = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self, limit):
+        self.read_limit = limit
+        return self.body
+
+
+class _FakePublisherOpener:
+    def __init__(self, response: _FakePublisherResponse):
+        self.response = response
+        self.request = None
+        self.timeout = None
+
+    def open(self, request, timeout):
+        self.request = request
+        self.timeout = timeout
+        return self.response
 
 
 class MonitorPublisherTests(unittest.TestCase):
@@ -1050,6 +1085,266 @@ class MonitorPublisherTests(unittest.TestCase):
             ),
             "e7e822dba04efc22745208c1a162c06ea712d4d2024427879d70c8e1801a478e",
         )
+
+    def test_ingest_acknowledgement_binds_exact_submitted_snapshot(self) -> None:
+        snapshot = {
+            "workspace_id": "workspace-test",
+            "sequence": 17,
+            "observed_at": "2026-08-07T01:02:03Z",
+        }
+        body_sha256 = hashlib.sha256(canonical_json(snapshot)).hexdigest()
+        payload = {
+            "ok": True,
+            "accepted": {
+                **snapshot,
+                "received_at": "2026-08-07T01:02:04.000Z",
+                "body_sha256": body_sha256,
+                "signature_verified": True,
+            },
+        }
+        result = _validate_ingest_acknowledgement(
+            status=202,
+            payload=payload,
+            response_headers={
+                "X-Cogni-Sequence": "17",
+                "X-Cogni-Body-SHA256": body_sha256,
+            },
+            snapshot=snapshot,
+            body_sha256=body_sha256,
+            request_started_at=datetime(
+                2026, 8, 7, 1, 2, 3, tzinfo=timezone.utc
+            ),
+            response_received_at=datetime(
+                2026, 8, 7, 1, 2, 5, tzinfo=timezone.utc
+            ),
+        )
+        self.assertIs(result, payload)
+
+    def test_ingest_acknowledgement_rejects_every_binding_mismatch(self) -> None:
+        snapshot = {
+            "workspace_id": "workspace-test",
+            "sequence": 17,
+            "observed_at": "2026-08-07T01:02:03Z",
+        }
+        body_sha256 = hashlib.sha256(canonical_json(snapshot)).hexdigest()
+        valid_payload = {
+            "ok": True,
+            "accepted": {
+                **snapshot,
+                "received_at": "2026-08-07T01:02:04.000Z",
+                "body_sha256": body_sha256,
+                "signature_verified": True,
+            },
+        }
+        valid_headers = {
+            "X-Cogni-Sequence": "17",
+            "X-Cogni-Body-SHA256": body_sha256,
+        }
+        mutations = {
+            "workspace": lambda payload, headers: payload["accepted"].update(
+                workspace_id="other"
+            ),
+            "sequence": lambda payload, headers: payload["accepted"].update(
+                sequence=18
+            ),
+            "observed_at": lambda payload, headers: payload["accepted"].update(
+                observed_at="2026-08-07T01:02:05Z"
+            ),
+            "digest": lambda payload, headers: payload["accepted"].update(
+                body_sha256="0" * 64
+            ),
+            "signature": lambda payload, headers: payload["accepted"].update(
+                signature_verified=False
+            ),
+            "received_at": lambda payload, headers: payload["accepted"].update(
+                received_at="not-a-timestamp"
+            ),
+            "ancient_received_at": lambda payload, headers: payload[
+                "accepted"
+            ].update(received_at="1970-01-01T00:00:00.000Z"),
+            "future_received_at": lambda payload, headers: payload[
+                "accepted"
+            ].update(received_at="9999-12-31T23:59:59.000Z"),
+            "space_received_at": lambda payload, headers: payload[
+                "accepted"
+            ].update(received_at="2026-08-07 01:02:04.000Z"),
+            "offset_received_at": lambda payload, headers: payload[
+                "accepted"
+            ].update(received_at="2026-08-07T01:02:04.000+00:00"),
+            "sequence_header": lambda payload, headers: headers.update(
+                {"X-Cogni-Sequence": "18"}
+            ),
+            "digest_header": lambda payload, headers: headers.update(
+                {"X-Cogni-Body-SHA256": "0" * 64}
+            ),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                payload = deepcopy(valid_payload)
+                headers = dict(valid_headers)
+                mutate(payload, headers)
+                with self.assertRaises(RuntimeError):
+                    _validate_ingest_acknowledgement(
+                        status=202,
+                        payload=payload,
+                        response_headers=headers,
+                        snapshot=snapshot,
+                        body_sha256=body_sha256,
+                        request_started_at=datetime(
+                            2026, 8, 7, 1, 2, 3, tzinfo=timezone.utc
+                        ),
+                        response_received_at=datetime(
+                            2026, 8, 7, 1, 2, 5, tzinfo=timezone.utc
+                        ),
+                    )
+
+    def test_ingest_acknowledgement_rejects_schema_drift(self) -> None:
+        snapshot = {
+            "workspace_id": "workspace-test",
+            "sequence": 17,
+            "observed_at": "2026-08-07T01:02:03Z",
+        }
+        body_sha256 = hashlib.sha256(canonical_json(snapshot)).hexdigest()
+        payload = {
+            "ok": True,
+            "accepted": {
+                **snapshot,
+                "received_at": "2026-08-07T01:02:04.000Z",
+                "body_sha256": body_sha256,
+                "signature_verified": True,
+                "uncontracted": "field",
+            },
+        }
+        with self.assertRaisesRegex(RuntimeError, "unexpected accepted schema"):
+            _validate_ingest_acknowledgement(
+                status=202,
+                payload=payload,
+                response_headers={
+                    "X-Cogni-Sequence": "17",
+                    "X-Cogni-Body-SHA256": body_sha256,
+                },
+                snapshot=snapshot,
+                body_sha256=body_sha256,
+                request_started_at=datetime(
+                    2026, 8, 7, 1, 2, 3, tzinfo=timezone.utc
+                ),
+                response_received_at=datetime(
+                    2026, 8, 7, 1, 2, 5, tzinfo=timezone.utc
+                ),
+            )
+
+    def test_publish_rejects_server_ack_for_a_different_digest(self) -> None:
+        snapshot = {
+            "workspace_id": "workspace-test",
+            "sequence": 17,
+            "observed_at": "2026-08-07T01:02:03Z",
+        }
+        body_sha256 = hashlib.sha256(canonical_json(snapshot)).hexdigest()
+        response_payload = {
+            "ok": True,
+            "accepted": {
+                **snapshot,
+                "received_at": "2026-08-07T01:02:04.000Z",
+                "body_sha256": "0" * 64,
+                "signature_verified": True,
+            },
+        }
+        opener = _FakePublisherOpener(
+            _FakePublisherResponse(
+                json.dumps(response_payload).encode("utf-8"),
+                body_sha256=body_sha256,
+            )
+        )
+        with patch(
+            "scripts.publish_monitor_snapshot.urllib.request.build_opener",
+            return_value=opener,
+        ), self.assertRaisesRegex(RuntimeError, "digest does not match"):
+            publish(
+                endpoint="https://cogni-os-orchestrator.pages.dev/api/ingest",
+                key_id="publisher-2026-08",
+                secret="0123456789abcdef0123456789abcdef",
+                snapshot=snapshot,
+                timeout=5,
+            )
+
+    def test_publish_accepts_an_exact_time_bound_acknowledgement(self) -> None:
+        snapshot = {
+            "workspace_id": "workspace-test",
+            "sequence": 17,
+            "observed_at": datetime.now(timezone.utc)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z"),
+        }
+        body_sha256 = hashlib.sha256(canonical_json(snapshot)).hexdigest()
+        response_payload = {
+            "ok": True,
+            "accepted": {
+                **snapshot,
+                "received_at": datetime.now(timezone.utc)
+                .isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z"),
+                "body_sha256": body_sha256,
+                "signature_verified": True,
+            },
+        }
+        opener = _FakePublisherOpener(
+            _FakePublisherResponse(
+                json.dumps(response_payload).encode("utf-8"),
+                body_sha256=body_sha256,
+            )
+        )
+        with patch(
+            "scripts.publish_monitor_snapshot.urllib.request.build_opener",
+            return_value=opener,
+        ):
+            accepted = publish(
+                endpoint="https://cogni-os-orchestrator.pages.dev/api/ingest",
+                key_id="publisher-2026-08",
+                secret="0123456789abcdef0123456789abcdef",
+                snapshot=snapshot,
+                timeout=5,
+            )
+        self.assertEqual(accepted, response_payload)
+        self.assertEqual(opener.timeout, 5)
+        self.assertEqual(opener.response.read_limit, 64 * 1024 + 1)
+
+    def test_publish_rejects_duplicate_acknowledgement_members(self) -> None:
+        snapshot = {
+            "workspace_id": "workspace-test",
+            "sequence": 17,
+            "observed_at": datetime.now(timezone.utc)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z"),
+        }
+        body_sha256 = hashlib.sha256(canonical_json(snapshot)).hexdigest()
+        duplicate_json = (
+            '{"ok":true,"ok":true,"accepted":'
+            + json.dumps(
+                {
+                    **snapshot,
+                    "received_at": datetime.now(timezone.utc)
+                    .isoformat(timespec="milliseconds")
+                    .replace("+00:00", "Z"),
+                    "body_sha256": body_sha256,
+                    "signature_verified": True,
+                }
+            )
+            + "}"
+        ).encode("utf-8")
+        opener = _FakePublisherOpener(
+            _FakePublisherResponse(duplicate_json, body_sha256=body_sha256)
+        )
+        with patch(
+            "scripts.publish_monitor_snapshot.urllib.request.build_opener",
+            return_value=opener,
+        ), self.assertRaisesRegex(RuntimeError, "valid UTF-8 JSON"):
+            publish(
+                endpoint="https://cogni-os-orchestrator.pages.dev/api/ingest",
+                key_id="publisher-2026-08",
+                secret="0123456789abcdef0123456789abcdef",
+                snapshot=snapshot,
+                timeout=5,
+            )
 
     @patch("scripts.publish_monitor_snapshot._run_capped_command")
     def test_gpu_collector_never_queries_denied_devices(self, run) -> None:

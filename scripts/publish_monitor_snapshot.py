@@ -87,6 +87,10 @@ UNSAFE_OPERATIONAL_SUFFIXES = {
     ".yml",
 }
 INGEST_PROTOCOL = "COGNI-SNAPSHOT-V2"
+ACK_CLOCK_SKEW_SECONDS = 300
+ACK_RECEIVED_AT_PATTERN = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"
+)
 DEFAULT_ENDPOINT = "https://cogni-os-orchestrator.pages.dev/api/ingest"
 DEFAULT_ENDPOINT_HOST = "cogni-os-orchestrator.pages.dev"
 PRODUCTION_RUNTIME_ENV = "COGNI_PUBLISHER_PRODUCTION"
@@ -2873,6 +2877,100 @@ def peek_next_sequence(
         return 1
 
 
+def _validate_ingest_acknowledgement(
+    *,
+    status: int,
+    payload: Any,
+    response_headers: Any,
+    snapshot: dict[str, Any],
+    body_sha256: str,
+    request_started_at: datetime,
+    response_received_at: datetime,
+) -> dict[str, Any]:
+    """Fail closed unless the server ACK binds to the exact submitted snapshot."""
+
+    if status != 202:
+        raise RuntimeError(f"ingest rejected with HTTP {status}")
+    if not isinstance(payload, dict) or set(payload) != {"ok", "accepted"}:
+        raise RuntimeError("ingest acknowledgement has an unexpected envelope")
+    if payload["ok"] is not True or not isinstance(payload["accepted"], dict):
+        raise RuntimeError("ingest acknowledgement did not accept the snapshot")
+
+    accepted = payload["accepted"]
+    expected_keys = {
+        "workspace_id",
+        "sequence",
+        "observed_at",
+        "received_at",
+        "body_sha256",
+        "signature_verified",
+    }
+    if set(accepted) != expected_keys:
+        raise RuntimeError("ingest acknowledgement has an unexpected accepted schema")
+    if type(accepted["workspace_id"]) is not str or accepted["workspace_id"] != snapshot[
+        "workspace_id"
+    ]:
+        raise RuntimeError("ingest acknowledgement workspace does not match the request")
+    if type(accepted["sequence"]) is not int or accepted["sequence"] != snapshot[
+        "sequence"
+    ]:
+        raise RuntimeError("ingest acknowledgement sequence does not match the request")
+    if type(accepted["observed_at"]) is not str or accepted["observed_at"] != snapshot[
+        "observed_at"
+    ]:
+        raise RuntimeError("ingest acknowledgement timestamp does not match the request")
+    if (
+        type(accepted["body_sha256"]) is not str
+        or accepted["body_sha256"] != body_sha256
+    ):
+        raise RuntimeError("ingest acknowledgement digest does not match the request")
+    if accepted["signature_verified"] is not True:
+        raise RuntimeError("ingest acknowledgement did not verify the signature")
+
+    received_at_text = accepted["received_at"]
+    received_at = _parse_timestamp(received_at_text)
+    if (
+        type(received_at_text) is not str
+        or ACK_RECEIVED_AT_PATTERN.fullmatch(received_at_text) is None
+        or received_at is None
+        or received_at.tzinfo is None
+        or received_at.utcoffset() != timedelta(0)
+    ):
+        raise RuntimeError("ingest acknowledgement has an invalid UTC receipt timestamp")
+    for boundary in (request_started_at, response_received_at):
+        if boundary.tzinfo is None or boundary.utcoffset() is None:
+            raise RuntimeError("publisher receipt boundary must include a timezone")
+    request_started_at = request_started_at.astimezone(timezone.utc)
+    response_received_at = response_received_at.astimezone(timezone.utc)
+    observed_at = _parse_timestamp(snapshot["observed_at"])
+    if observed_at is None or observed_at.tzinfo is None:
+        raise RuntimeError("submitted snapshot timestamp must include a timezone")
+    observed_at = observed_at.astimezone(timezone.utc)
+    clock_skew = timedelta(seconds=ACK_CLOCK_SKEW_SECONDS)
+    if (
+        response_received_at < request_started_at
+        or received_at < request_started_at - clock_skew
+        or received_at > response_received_at + clock_skew
+        or received_at < observed_at - clock_skew
+    ):
+        raise RuntimeError("ingest acknowledgement receipt time is outside the request window")
+
+    if response_headers.get("X-Cogni-Sequence") != str(snapshot["sequence"]):
+        raise RuntimeError("ingest acknowledgement sequence header does not match")
+    if response_headers.get("X-Cogni-Body-SHA256") != body_sha256:
+        raise RuntimeError("ingest acknowledgement digest header does not match")
+    return payload
+
+
+def _reject_duplicate_json_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    document: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in document:
+            raise ValueError("duplicate JSON member in ingest acknowledgement")
+        document[key] = value
+    return document
+
+
 def publish(
     *,
     endpoint: str,
@@ -2916,15 +3014,31 @@ def publish(
         },
     )
     opener = urllib.request.build_opener(_NoRedirectHandler())
+    request_started_at = datetime.now(timezone.utc)
     try:
         with opener.open(request, timeout=timeout) as response:
             response_bytes = response.read(64 * 1024 + 1)
+            response_received_at = datetime.now(timezone.utc)
             if len(response_bytes) > 64 * 1024:
                 raise RuntimeError("ingest response exceeded the 64 KiB limit")
-            payload = json.loads(response_bytes.decode("utf-8"))
-            if response.status != 202 or payload.get("ok") is not True:
-                raise RuntimeError(f"ingest rejected with HTTP {response.status}")
-            return payload
+            try:
+                payload = json.loads(
+                    response_bytes.decode("utf-8"),
+                    object_pairs_hook=_reject_duplicate_json_members,
+                )
+            except (UnicodeDecodeError, ValueError) as error:
+                raise RuntimeError(
+                    "ingest acknowledgement was not valid UTF-8 JSON"
+                ) from error
+            return _validate_ingest_acknowledgement(
+                status=response.status,
+                payload=payload,
+                response_headers=response.headers,
+                snapshot=snapshot,
+                body_sha256=body_sha256,
+                request_started_at=request_started_at,
+                response_received_at=response_received_at,
+            )
     except urllib.error.HTTPError as error:
         body_text = error.read().decode("utf-8", errors="replace")[:2048]
         raise RuntimeError(f"ingest failed HTTP {error.code}: {body_text}") from error

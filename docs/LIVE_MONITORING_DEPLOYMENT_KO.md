@@ -55,6 +55,16 @@ COGNI-SNAPSHOT-V2
 필수입니다. 알 수 없거나 제거된 `key_id`, 잘못된 서명, 재사용 nonce,
 같거나 낮은 sequence는 모두 fail-closed로 거절됩니다.
 
+HTTP `202` 자체는 게시 성공 증거가 아닙니다. publisher는 응답이 정확히
+`{ok, accepted}` 두 필드로만 구성되고, `accepted`의
+`workspace_id`, `sequence`, `observed_at`, `body_sha256`가 방금 전송한
+스냅샷과 일치하며 `signature_verified=true`인지 검증합니다. 서버가 생성한
+`received_at`은 정확한 `YYYY-MM-DDTHH:mm:ss.sssZ` 형식이어야 하며 로컬의 요청
+시작·응답 수신 시간창(프로토콜 최대 시계 오차 300초)에 결합됩니다. 응답 헤더
+`X-Cogni-Sequence`, `X-Cogni-Body-SHA256`도 같은 값이어야 합니다. 응답
+스키마가 늘거나 줄거나, JSON member가 중복되거나, 값 하나라도 다르면 journal에
+성공을 기록하지 않고 fail-closed로 실패합니다.
+
 ## 데이터 경계
 
 publisher는 다음 운영 메타데이터만 외부 관제 채널에 전송합니다.
@@ -281,7 +291,8 @@ $env:COGNI_MONITOR_INGEST_SECRET = "<Cloudflare에 등록한 새 secret>"
    확인합니다.
 4. publisher의 `COGNI_MONITOR_KEY_ID`와
    `COGNI_MONITOR_INGEST_SECRET`을 새 키로 바꿉니다.
-5. 기존보다 큰 sequence의 V2 스냅샷을 1개 이상 게시하고 HTTP 202를
+5. 기존보다 큰 sequence의 V2 스냅샷을 1개 이상 게시하고 HTTP 202뿐 아니라
+   publisher가 출력한 sequence/body SHA-256이 전송 값과 정확히 일치하는지
    확인합니다. sequence를 초기화하거나 낮추지 않습니다.
 6. `/api/snapshot`이 `LIVE`,
    `monitoring.signature_verified=true`인지 확인합니다.
@@ -350,7 +361,7 @@ node scripts\validate_p01_node.mjs
 배포 후 확인:
 
 1. `/api/health`가 `CONFIGURED`
-2. publisher가 HTTP 202와 sequence/body SHA-256을 출력
+2. publisher가 HTTP 202와 요청에 정확히 결합된 sequence/body SHA-256을 출력
 3. `/api/snapshot`의 `monitoring.signature_verified=true`
 4. `X-Cogni-Data-State: LIVE`
 5. 180초 publisher 중단 후 `STALE`
@@ -405,3 +416,20 @@ compute process, Docker DeviceRequests, Slurm/예약 증거 네 소스가 모두
 `실시간 연동`, `ACTIVE`, `VERIFIED`, GPU 수치는 실행 증거로 사용할 수
 없습니다. 이 문서와 V2 함수가 배포되고 D1·keyring·publisher가 실제로
 연결된 이후의 스냅샷부터 관제 증거로 인정합니다.
+
+### 2026-08-07T06:21Z 공개 API 재감사
+
+- `/api/health`: HTTP 200, `CONFIGURED`; D1 binding·storage·workspace·keyring은
+  구성된 것으로 응답했다.
+- `/api/snapshot`: HTTP 200이나 `X-Cogni-Data-State: STALE`, schema `1.0`,
+  sequence `853`, 마지막 관측 `2026-08-01T03:15:23.934329Z`였다.
+- snapshot의 서명은 검증됐지만 source commit은
+  `3ac8a8b2f25c0d23ec5afcdb91e2062cc319b010`, `tree_clean=false`였고
+  `deployment`는 `null`이었다.
+- roadmap은 `trusted_complete=0/11`, progress는 `stale-unavailable`, release
+  gate는 `NO_GO`였다.
+
+따라서 저장소의 새 ACK 검증이 로컬·독립 시험을 통과한 것과 현재 공개 publisher가
+실시간으로 동작한다는 주장은 분리한다. schema 1.2 publisher 재가동, exact ACK,
+fresh snapshot, deployed commit/D1 독립 대조 전에는 공개 대시보드를 실시간 완료로
+표시하지 않는다.
