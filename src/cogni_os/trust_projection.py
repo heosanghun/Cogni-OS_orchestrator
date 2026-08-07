@@ -70,17 +70,23 @@ SAFE_BROKER_FD_ALIAS = re.compile(r"^/proc/self/fd/[1-9][0-9]*$")
 EXTERNAL_BROKER_SIGNATURE_VERIFICATION_AVAILABLE = False
 
 
-def _diagnostic_false_return_line(callback: Any) -> int | None:
-    """Return only the code line of a fail-closed predicate for CI diagnosis."""
+def _diagnostic_false_return_line(callback: Any) -> str | None:
+    """Return only the predicate and line of a CI-only fail-closed rejection."""
 
-    target = _valid_trusted_verification.__code__
-    rejected_at: int | None = None
+    targets = {
+        _valid_trusted_verification.__code__: "verification",
+        _valid_command_receipt.__code__: "command_receipt",
+    }
+    rejected_at: str | None = None
     previous = sys.gettrace()
 
     def trace(frame: Any, event: str, value: Any) -> Any:
         nonlocal rejected_at
-        if frame.f_code is target and event == "return" and value is False:
-            rejected_at = frame.f_lineno
+        label = targets.get(frame.f_code)
+        if label is not None and event == "return" and value is False:
+            candidate = f"{label}:{frame.f_lineno}"
+            if label == "command_receipt" or rejected_at is None:
+                rejected_at = candidate
         return trace
 
     sys.settrace(trace)

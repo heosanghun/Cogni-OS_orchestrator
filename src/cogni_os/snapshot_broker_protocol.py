@@ -482,21 +482,20 @@ def package_tree_sha256(package_root: Path) -> str:
     try:
         protected_chain = (package_root, *package_root.parents)
         chain_metadata = [path.stat(follow_symlinks=False) for path in protected_chain]
-        root_metadata = chain_metadata[0]
     except OSError as exc:
         raise SnapshotBrokerError("Broker package tree is unavailable") from exc
-    if (
-        not stat.S_ISDIR(root_metadata.st_mode)
-        or stat.S_ISLNK(root_metadata.st_mode)
-        or any(
+    for index, metadata in enumerate(chain_metadata):
+        if (
             stat.S_ISLNK(metadata.st_mode)
             or not stat.S_ISDIR(metadata.st_mode)
             or metadata.st_uid != 0
             or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
-            for metadata in chain_metadata
-        )
-    ):
-        raise SnapshotBrokerError("Broker package root ancestry is not root-protected")
+        ):
+            mode = stat.S_IMODE(metadata.st_mode)
+            raise SnapshotBrokerError(
+                "Broker package root ancestry is not root-protected: "
+                f"component={index},owner={metadata.st_uid},mode={mode:o}"
+            )
     pending = [package_root]
     records: list[dict[str, Any]] = []
     count = 0
