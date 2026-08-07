@@ -639,7 +639,7 @@ while (`$true) {
         -CodexPath $fakeCodexPs1 -CodexSha256 $codexSha `
         -GitPath $gitPath -GitSha256 $gitSha `
         -RunnerPath $runner -RunnerSha256 $runnerSha `
-        -AgentOutboxQuiescenceSeconds 1 `
+        -AgentOutboxQuiescenceSeconds 30 `
         -AllowedTargetRoots $targetRoot
     $quiescenceState = Get-State -Root $controlRoot -Id $quiescenceTask
     if ([string]$quiescenceState.phase -ne "WAIT_ANTIGRAVITY_R1" -or
@@ -663,7 +663,7 @@ while (`$true) {
         -CodexPath $fakeCodexPs1 -CodexSha256 $codexSha `
         -GitPath $gitPath -GitSha256 $gitSha `
         -RunnerPath $runner -RunnerSha256 $runnerSha `
-        -AgentOutboxQuiescenceSeconds 1 `
+        -AgentOutboxQuiescenceSeconds 30 `
         -AllowedTargetRoots $targetRoot
     $quiescenceState = Get-State -Root $controlRoot -Id $quiescenceTask
     if ([string]$quiescenceState.phase -ne "WAIT_ANTIGRAVITY_R1" -or
@@ -672,7 +672,14 @@ while (`$true) {
         ))) {
         throw "Producer-controlled timestamps bypassed broker observation."
     }
-    Start-Sleep -Milliseconds 1100
+    # Advance only the broker-owned observation clock. Producer mtimes remain
+    # old and therefore cannot satisfy the quiescence policy themselves.
+    $quiescenceState = Get-State -Root $controlRoot -Id $quiescenceTask
+    $quiescenceState.pending_antigravity.stability_observation.
+        first_observed_at = [DateTime]::UtcNow.AddSeconds(-31).ToString("o")
+    Write-Utf8 -Path (Join-Path $quiescenceRoot "STATE.json") -Text (
+        $quiescenceState | ConvertTo-Json -Depth 32
+    )
     & powershell.exe -NoProfile -ExecutionPolicy Bypass `
         -File $sidecar -WorkspaceRoot $controlRoot `
         -LanguageServerPath $fakeAgentApiCmd `
@@ -680,7 +687,7 @@ while (`$true) {
         -CodexPath $fakeCodexPs1 -CodexSha256 $codexSha `
         -GitPath $gitPath -GitSha256 $gitSha `
         -RunnerPath $runner -RunnerSha256 $runnerSha `
-        -AgentOutboxQuiescenceSeconds 1 `
+        -AgentOutboxQuiescenceSeconds 30 `
         -AllowedTargetRoots $targetRoot
     $quiescenceState = Get-State -Root $controlRoot -Id $quiescenceTask
     if ([string]$quiescenceState.phase -ne "CODEX_R1_DONE" -or

@@ -216,6 +216,38 @@ class ReleaseGateTestCase(unittest.TestCase):
                 "cloudflare_rollback_dry_run.json",
                 {"mutation_performed": False},
             ),
+            "cloudflare-current-deployment-body": (
+                "cloudflare_current_deployment.body.json",
+                {"id": "current-deployment"},
+            ),
+            "cloudflare-current-deployment-capture": (
+                "cloudflare_current_deployment.capture.json",
+                {"status": 200},
+            ),
+            "cloudflare-current-project-body": (
+                "cloudflare_current_project.body.json",
+                {"name": "cogni-os-orchestrator"},
+            ),
+            "cloudflare-current-project-capture": (
+                "cloudflare_current_project.capture.json",
+                {"status": 200},
+            ),
+            "cloudflare-rollback-deployment-body": (
+                "cloudflare_rollback_deployment.body.json",
+                {"id": "rollback-deployment"},
+            ),
+            "cloudflare-rollback-deployment-capture": (
+                "cloudflare_rollback_deployment.capture.json",
+                {"status": 200},
+            ),
+            "cloudflare-rollback-project-body": (
+                "cloudflare_rollback_project.body.json",
+                {"name": "cogni-os-orchestrator"},
+            ),
+            "cloudflare-rollback-project-capture": (
+                "cloudflare_rollback_project.capture.json",
+                {"status": 200},
+            ),
         }
         artifacts: list[dict[str, object]] = []
         artifact_bytes: dict[str, bytes] = {}
