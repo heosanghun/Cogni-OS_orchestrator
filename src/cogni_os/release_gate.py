@@ -1042,8 +1042,14 @@ def issue_release_gate(
     # operation.  Platforms without descriptor-relative no-follow traversal
     # cannot safely bind an archive path and therefore receive an honest NO_GO.
     _require_secure_archive_primitives()
-    p01_task = workspace.get_task(P01_TASK_ID)
-    p01_attempt = p01_task.get("attempt")
+    # Do not disclose whether the release task exists before the conductor has
+    # proved authority.  Attempt 1 is only a provisional authorization scope;
+    # a successfully authorized caller must still bind the actual task below.
+    try:
+        p01_task = workspace.get_task(P01_TASK_ID)
+    except ConfigurationError:
+        p01_task = None
+    p01_attempt = p01_task.get("attempt") if p01_task is not None else 1
     if (
         not isinstance(p01_attempt, int)
         or isinstance(p01_attempt, bool)
@@ -1059,6 +1065,8 @@ def issue_release_gate(
         run_id=None,
         task_attempt=p01_attempt,
     )
+    if p01_task is None:
+        raise StateError("P01 task is required for release gate issuance")
     initial_events = workspace.ledger.read_verified()
     orchestrator = _orchestrator_snapshot(workspace, actor, initial_events)
     source = git_release_source_state(workspace.root)

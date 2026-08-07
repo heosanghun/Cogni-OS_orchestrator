@@ -68,16 +68,22 @@ def install_legacy_capability_fixture(test_case: Any) -> None:
         expected_task_attempt: int | None,
         **_ignored: Any,
     ) -> dict[str, Any]:
-        if (
-            not isinstance(receipt, dict)
-            or receipt.get("test_fixture_only") is not True
-            or receipt.get("actor") != expected_actor
-            or receipt.get("operation") != expected_operation
-            or receipt.get("task_id") != expected_task_id
-            or receipt.get("run_id") != expected_run_id
-            or receipt.get("task_attempt") != expected_task_attempt
-        ):
-            raise AssertionError("legacy capability fixture scope mismatch")
+        expected = {
+            "actor": expected_actor,
+            "operation": expected_operation,
+            "task_id": expected_task_id,
+            "run_id": expected_run_id,
+            "task_attempt": expected_task_attempt,
+        }
+        if not isinstance(receipt, dict) or receipt.get("test_fixture_only") is not True:
+            raise AssertionError("legacy capability fixture is not a test receipt")
+        for field, expected_value in expected.items():
+            observed_value = receipt.get(field)
+            if observed_value != expected_value:
+                raise AssertionError(
+                    "legacy capability fixture scope mismatch: "
+                    f"field={field},observed={observed_value},expected={expected_value}"
+                )
         return dict(receipt)
 
     capability_patch = patch.object(

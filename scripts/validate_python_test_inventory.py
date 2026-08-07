@@ -43,7 +43,15 @@ def _bounded_result_details(
         lines = [line.strip() for line in traceback_text.splitlines() if line.strip()]
         terminal = lines[-1] if lines else "unknown test error"
         terminal = re.sub(r"[\x00-\x1f\x7f]", " ", terminal)[:384]
-        details.append({"id": test.id(), "terminal": terminal})
+        locations = re.findall(
+            r'File "([^"]+)", line ([0-9]+), in ([^\s]+)',
+            traceback_text,
+        )
+        origin = " > ".join(
+            f"{Path(path).name}:{line}:{function}"
+            for path, line, function in locations[-3:]
+        )[:384]
+        details.append({"id": test.id(), "origin": origin, "terminal": terminal})
     return details
 
 
