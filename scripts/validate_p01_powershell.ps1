@@ -205,6 +205,26 @@ $productionTaskBefore = Get-TaskConfigurationFingerprint `
 
 try {
     New-Item -ItemType Directory -Path $context.root -Force | Out-Null
+    # Hosted Windows runners can assign a newly-created TEMP child directory
+    # to the local Administrators group.  Provision this test fixture with the
+    # same current-principal-only boundary required by the production writer so
+    # every subsequent regression reaches the behavior it is meant to test.
+    $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    $fixtureAcl = [Security.AccessControl.DirectorySecurity]::new()
+    $fixtureAcl.SetOwner($currentSid)
+    $fixtureAcl.SetAccessRuleProtection($true, $false)
+    $fixtureRule = [Security.AccessControl.FileSystemAccessRule]::new(
+        $currentSid,
+        [Security.AccessControl.FileSystemRights]::FullControl,
+        (
+            [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+            [Security.AccessControl.InheritanceFlags]::ObjectInherit
+        ),
+        [Security.AccessControl.PropagationFlags]::None,
+        [Security.AccessControl.AccessControlType]::Allow
+    )
+    $fixtureAcl.AddAccessRule($fixtureRule)
+    Set-Acl -LiteralPath $context.root -AclObject $fixtureAcl
     $context.valid_secret = Join-Path $context.root 'valid-secret.clixml'
     $context.short_secret = Join-Path $context.root 'short-secret.clixml'
     $context.plaintext_secret = Join-Path $context.root 'plaintext-secret.clixml'

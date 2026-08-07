@@ -661,6 +661,7 @@ class TrustedRunnerIsolationTests(unittest.TestCase):
             }
             swap_observed = threading.Event()
             postcheck_restored = threading.Event()
+            attacker_errors: list[BaseException] = []
             original_materialize = _materialize_committed_snapshot
 
             def swap_restore(
@@ -677,25 +678,39 @@ class TrustedRunnerIsolationTests(unittest.TestCase):
                 original_bytes = victim.read_bytes()
 
                 def attacker() -> None:
-                    backup = snapshot_root / "attack.py.safe"
-                    victim.chmod(0o600)
-                    victim.replace(backup)
-                    victim.write_text(
-                        "from pathlib import Path\n"
-                        f"Path(r'{marker}').write_text('executed')\n",
-                        encoding="utf-8",
-                    )
-                    swap_observed.set()
-                    victim.unlink()
-                    backup.replace(victim)
-                    victim.chmod(0o444)
-                    if victim.read_bytes() == original_bytes:
-                        postcheck_restored.set()
+                    try:
+                        backup = snapshot_root / "attack.py.safe"
+                        # Materialized snapshots are intentionally read-only.
+                        # The fixture is current-user owned, so model the exact
+                        # same-owner attack by first restoring owner write access.
+                        snapshot_root.chmod(0o700)
+                        victim.chmod(0o600)
+                        victim.replace(backup)
+                        victim.write_text(
+                            "from pathlib import Path\n"
+                            f"Path(r'{marker}').write_text('executed')\n",
+                            encoding="utf-8",
+                        )
+                        swap_observed.set()
+                        victim.unlink()
+                        backup.replace(victim)
+                        victim.chmod(0o444)
+                        snapshot_root.chmod(0o555)
+                        if victim.read_bytes() == original_bytes:
+                            postcheck_restored.set()
+                    except BaseException as error:  # surfaced on the parent thread
+                        attacker_errors.append(error)
+                    finally:
+                        snapshot_root.chmod(0o555)
 
                 worker = threading.Thread(target=attacker, daemon=True)
                 worker.start()
                 worker.join(timeout=5)
                 self.assertFalse(worker.is_alive())
+                if attacker_errors:
+                    raise AssertionError(
+                        "snapshot attack fixture failed"
+                    ) from attacker_errors[0]
                 self.assertEqual(
                     _committed_snapshot_postcheck(snapshot_root, expected),
                     expected,
@@ -1100,15 +1115,22 @@ class TrustedRunnerIsolationTests(unittest.TestCase):
             victim.chmod(0o444)
 
             extra = snapshot_root / "unexpected"
-            extra.mkdir()
-            extra.chmod(0o555)
-            with self.assertRaisesRegex(
-                EvidenceError,
-                r"(?i)(directory set|Git tree)",
-            ):
-                _committed_snapshot_postcheck(snapshot_root, snapshot)
-            extra.chmod(0o700)
-            extra.rmdir()
+            snapshot_root.chmod(0o700)
+            try:
+                extra.mkdir()
+                extra.chmod(0o555)
+                snapshot_root.chmod(0o555)
+                with self.assertRaisesRegex(
+                    EvidenceError,
+                    r"(?i)(directory set|Git tree)",
+                ):
+                    _committed_snapshot_postcheck(snapshot_root, snapshot)
+            finally:
+                snapshot_root.chmod(0o700)
+                if extra.exists():
+                    extra.chmod(0o700)
+                    extra.rmdir()
+                snapshot_root.chmod(0o555)
 
     def test_runs_root_reparse_is_rejected_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

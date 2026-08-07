@@ -17,7 +17,7 @@ import stat
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Final, Self
+from typing import Any, Final
 
 from .ledger_authority_v2 import (
     LEDGER_V2_PROTOCOL_ID,
@@ -286,7 +286,7 @@ class DurableV2DescriptorLock:
             return
         raise OSError("No supported descriptor advisory lock primitive")
 
-    def __enter__(self) -> Self:
+    def __enter__(self) -> "DurableV2DescriptorLock":
         self.acquire()
         return self
 

@@ -9,7 +9,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from setuptools import build_meta
+from _cogni_build_backend import build_wheel
 
 
 class TestWheelContents(unittest.TestCase):
@@ -22,13 +22,17 @@ class TestWheelContents(unittest.TestCase):
             project.mkdir()
             wheelhouse.mkdir()
             shutil.copy2(repository / "pyproject.toml", project / "pyproject.toml")
+            shutil.copy2(
+                repository / "_cogni_build_backend.py",
+                project / "_cogni_build_backend.py",
+            )
             shutil.copy2(repository / "README.md", project / "README.md")
             shutil.copytree(repository / "src", project / "src")
 
             previous = Path.cwd()
             try:
                 os.chdir(project)
-                wheel_name = build_meta.build_wheel(str(wheelhouse))
+                wheel_name = build_wheel(str(wheelhouse))
             finally:
                 os.chdir(previous)
 

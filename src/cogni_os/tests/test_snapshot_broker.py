@@ -11,7 +11,6 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Self
 from unittest.mock import MagicMock, patch
 
 from cogni_os.errors import EvidenceError
@@ -116,7 +115,7 @@ class SnapshotBrokerProtocolTests(unittest.TestCase):
                 self.consumed = 0
                 self.closed = False
 
-            def __enter__(self) -> Self:
+            def __enter__(self) -> "BoundedEntries":
                 return self
 
             def __exit__(self, *args: object) -> None:

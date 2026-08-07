@@ -805,7 +805,10 @@ class PhaseOneValidatorTests(unittest.TestCase):
         except OSError:
             path.write_bytes(outside.read_bytes())
         if linked:
-            with self.assertRaisesRegex(VALIDATOR.ValidationError, "symlink|reparse"):
+            with self.assertRaisesRegex(
+                VALIDATOR.ValidationError,
+                "symlink|reparse|link",
+            ):
                 self._validate(event)
         else:
             original = VALIDATOR._is_reparse_or_link

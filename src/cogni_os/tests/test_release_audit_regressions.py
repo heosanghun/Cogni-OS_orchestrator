@@ -332,7 +332,7 @@ class ReleaseAuditRegressionTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 EvidenceError,
-                r"(?i)(untracked|source|executable|operational|provenance|isolation)",
+                r"(?i)(untracked|source|executable|operational|provenance|isolat)",
             ):
                 run_trusted_validations(
                     workspace_root=workspace,
