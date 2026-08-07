@@ -294,8 +294,11 @@ $env:COGNI_MONITOR_INGEST_SECRET = "<Cloudflare에 등록한 새 secret>"
 5. 기존보다 큰 sequence의 V2 스냅샷을 1개 이상 게시하고 HTTP 202뿐 아니라
    publisher가 출력한 sequence/body SHA-256이 전송 값과 정확히 일치하는지
    확인합니다. sequence를 초기화하거나 낮추지 않습니다.
-6. `/api/snapshot`이 `LIVE`,
-   `monitoring.signature_verified=true`인지 확인합니다.
+6. `/api/snapshot`이 `LIVE`이고
+   `monitoring.payload_signature_verified=true`,
+   `monitoring.signature_verified=true`, `monitoring.fresh=true`,
+   `monitoring.current_source_commit_bound=true`,
+   `monitoring.deployment_verified=true`인지 함께 확인합니다.
 7. D1의 최신 행이 새 키로 저장됐는지 확인합니다.
 
 ```powershell
@@ -304,8 +307,10 @@ npx wrangler d1 execute cogni-os-monitoring --remote `
 ```
 
 8. `monitor_history`는 workspace당 최근 720개를 보관하며 조회 시 각
-   행을 현재 keyring으로 재검증합니다. old-key 행이 모두 보존 기간에서
-   빠진 뒤에만 old key를 제거하는 것이 가장 안전합니다.
+   행을 현재 keyring으로 재검증합니다. 공개 `/api/history`에는 그중 현재
+   BUILD_BOUND 배포·소스 커밋에 결속되고 TTL 안에 있는 행만 투영합니다.
+   old-key 행이 모두 보존 기간에서 빠진 뒤에만 old key를 제거하는 것이
+   가장 안전합니다.
 
 ```powershell
 npx wrangler d1 execute cogni-os-monitoring --remote `
@@ -362,7 +367,8 @@ node scripts\validate_p01_node.mjs
 
 1. `/api/health`가 `CONFIGURED`
 2. publisher가 HTTP 202와 요청에 정확히 결합된 sequence/body SHA-256을 출력
-3. `/api/snapshot`의 `monitoring.signature_verified=true`
+3. `/api/snapshot`의 payload signature·freshness·current source commit·
+   deployment 결속 4개 필드가 모두 `true`
 4. `X-Cogni-Data-State: LIVE`
 5. 180초 publisher 중단 후 `STALE`
 6. 같은 nonce 재전송 시 HTTP 409
@@ -378,8 +384,9 @@ node scripts\validate_p01_node.mjs
 `source.operational_state.change_count`는 검증 대상 운영 증거 변경만
 셉니다. `source.git_commit`과 `collector.attribution.source_commit`이
 일치하지 않거나 운영 변경에 미분류 파일이 있으면 새 스냅샷은
-릴리스 `PASS` 증거로 승격되지 않습니다. 서명 자체가 유효한 스냅샷은
-`LIVE`로 보일 수 있어도 `release_gate`는 반드시 `NO_GO`를 유지합니다.
+릴리스 `PASS` 증거로 승격되지 않습니다. payload 서명만 유효하고 현재
+배포·소스 결속이 없으면 `UNBOUND_DEPLOYMENT`로 닫히며 작업·GPU·진행률·
+history 운영값을 노출하지 않습니다.
 `reports/`와 `runs/`는 항상 변경 가능한 staging일 뿐 릴리스 진실이
 아닙니다. `submissions/`와 `archive/` 아래 파일도 단순히 안전한 폴더에
 있다는 이유로 신뢰하지 않습니다. signed ledger의 제출·검증·거절
@@ -396,8 +403,9 @@ payload가 주장하는 commit은 배포 귀속으로 사용하지 않으며 모
 
 schema `1.0`과 `1.1`은 무중단 전환 중 읽기·표시 호환만 제공합니다. 신규
 provenance 게이트가 없는 legacy snapshot은 `PASS`를 주장할 수 없습니다.
-Phase 1의 배포 증거는 schema `1.2`, `LIVE`, `signature_verified=true`, clean
-source, ledger-bound operational state, `BUILD_BOUND` commit을 모두 요구합니다.
+Phase 1의 배포 증거는 schema `1.2`, `LIVE`, payload signature·freshness·
+current source commit·deployment 결속, clean source, ledger-bound operational
+state, `BUILD_BOUND` commit을 모두 요구합니다.
 또한 Cloudflare project API가 가리키는 현재 production deployment ID와
 고유 deployment URL이 응답의 `release_deployment` 및 빌드 귀속과 정확히
 일치해야 합니다. 같은 commit의 다른 deployment도 `NO_GO`입니다.

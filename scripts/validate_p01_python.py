@@ -817,6 +817,10 @@ def _validate_snapshot(
             "state",
             "reason",
             "signature_verified",
+            "payload_signature_verified",
+            "fresh",
+            "current_source_commit_bound",
+            "deployment_verified",
             "sequence",
             "age_seconds",
             "observed_at",
@@ -829,6 +833,10 @@ def _validate_snapshot(
     if (
         monitoring["state"] != "LIVE"
         or monitoring["signature_verified"] is not True
+        or monitoring["payload_signature_verified"] is not True
+        or monitoring["fresh"] is not True
+        or monitoring["current_source_commit_bound"] is not True
+        or monitoring["deployment_verified"] is not True
         or monitoring["sequence"] != value["sequence"]
         or monitoring["observed_at"] != value["observed_at"]
         or not isinstance(monitoring["age_seconds"], (int, float))

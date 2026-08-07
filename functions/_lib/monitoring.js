@@ -108,6 +108,35 @@ export function deploymentAttribution(env = {}, build = BUILD_DEPLOYMENT) {
   };
 }
 
+export function operationalSnapshotTrusted(snapshot, deployment) {
+  const expectedCommit = String(snapshot?.source?.git_commit || "").toLowerCase();
+  const deploymentCommit = String(deployment?.source_commit || "").toLowerCase();
+  const deploymentUrl = String(deployment?.deployment_url || "");
+  const releaseDeployment = snapshot?.release_deployment;
+  const monitoring = snapshot?.monitoring;
+  return (
+    monitoring?.state === "LIVE" &&
+    monitoring?.signature_verified === true &&
+    typeof monitoring?.age_seconds === "number" &&
+    Number.isFinite(monitoring.age_seconds) &&
+    monitoring.age_seconds >= 0 &&
+    typeof monitoring?.max_age_seconds === "number" &&
+    Number.isFinite(monitoring.max_age_seconds) &&
+    monitoring.age_seconds <= monitoring.max_age_seconds &&
+    deployment?.attribution === "BUILD_BOUND" &&
+    /^[0-9a-f]{40}$/.test(expectedCommit) &&
+    deploymentCommit === expectedCommit &&
+    releaseDeployment?.api_verified === true &&
+    releaseDeployment?.provider === "cloudflare-pages" &&
+    /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(
+      String(releaseDeployment?.deployment_id || ""),
+    ) &&
+    releaseDeployment?.canonical_url === PRODUCTION_URL &&
+    releaseDeployment?.source_commit === expectedCommit &&
+    releaseDeployment?.deployment_url === deploymentUrl
+  );
+}
+
 export function bindDeploymentTruth(snapshot, deployment) {
   const expectedCommit = String(snapshot?.source?.git_commit || "").toLowerCase();
   const deploymentCommit = String(deployment?.source_commit || "").toLowerCase();
@@ -134,7 +163,23 @@ export function bindDeploymentTruth(snapshot, deployment) {
       observed_at: new Date().toISOString(),
     });
   }
-  const response = { ...snapshot, alerts, deployment };
+  const response = {
+    ...snapshot,
+    monitoring: {
+      ...(snapshot?.monitoring || {}),
+      payload_signature_verified:
+        snapshot?.monitoring?.signature_verified === true,
+      signature_verified:
+        snapshot?.monitoring?.state === "LIVE" &&
+        snapshot?.monitoring?.signature_verified === true &&
+        trusted,
+      fresh: snapshot?.monitoring?.state === "LIVE",
+      current_source_commit_bound: trusted,
+      deployment_verified: trusted,
+    },
+    alerts,
+    deployment,
+  };
   if (!trusted && snapshot?.release_gate?.status === "PASS") {
     response.release_gate = {
       status: "NO_GO",
@@ -143,6 +188,39 @@ export function bindDeploymentTruth(snapshot, deployment) {
         "배포 산출물의 BUILD_BOUND 커밋이 서명된 소스 커밋과 일치하지 않습니다.",
       ],
       evidence_sha256: null,
+    };
+  }
+  if (
+    response?.monitoring?.state === "LIVE" &&
+    !operationalSnapshotTrusted(response, deployment)
+  ) {
+    const reason = trusted
+      ? "The LIVE payload failed the complete operational trust predicate."
+      : "The signed payload is fresh, but its deployment and current source commit are not bound.";
+    const unavailable = failClosedSnapshot("UNBOUND_DEPLOYMENT", reason, {
+      workspaceId: snapshot?.workspace_id || null,
+    });
+    return {
+      ...unavailable,
+      monitoring: {
+        ...unavailable.monitoring,
+        state: "UNBOUND_DEPLOYMENT",
+        reason,
+        signature_verified: false,
+        payload_signature_verified:
+          snapshot?.monitoring?.signature_verified === true,
+        fresh: true,
+        current_source_commit_bound: false,
+        deployment_verified: false,
+        sequence: snapshot?.monitoring?.sequence ?? null,
+        age_seconds: snapshot?.monitoring?.age_seconds ?? null,
+        observed_at: snapshot?.monitoring?.observed_at ?? null,
+        received_at: snapshot?.monitoring?.received_at ?? null,
+        body_sha256: snapshot?.monitoring?.body_sha256 ?? null,
+        max_age_seconds: snapshot?.monitoring?.max_age_seconds ?? null,
+      },
+      alerts,
+      deployment,
     };
   }
   return response;
@@ -1780,6 +1858,10 @@ export function failClosedSnapshot(
       state,
       reason,
       signature_verified: false,
+      payload_signature_verified: false,
+      fresh: false,
+      current_source_commit_bound: false,
+      deployment_verified: false,
       sequence: null,
       age_seconds: null,
       observed_at: null,

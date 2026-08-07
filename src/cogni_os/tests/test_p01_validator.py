@@ -389,6 +389,10 @@ class PhaseOneValidatorTests(unittest.TestCase):
                 "state": "LIVE",
                 "reason": "서명 검증된 최신 운영 스냅샷",
                 "signature_verified": True,
+                "payload_signature_verified": True,
+                "fresh": True,
+                "current_source_commit_bound": True,
+                "deployment_verified": True,
                 "sequence": 73,
                 "age_seconds": 0.4,
                 "observed_at": self.observed_at,
@@ -737,6 +741,23 @@ class PhaseOneValidatorTests(unittest.TestCase):
         event, _ = self._fixture(disable_gpu_evidence)
         with self.assertRaisesRegex(VALIDATOR.ValidationError, "GPU"):
             self._validate(event)
+
+    def test_rejects_live_snapshot_without_complete_monitor_binding(self) -> None:
+        for field in (
+            "payload_signature_verified",
+            "fresh",
+            "current_source_commit_bound",
+            "deployment_verified",
+        ):
+            with self.subTest(field=field):
+                def invalidate(documents: dict[str, dict[str, Any]]) -> None:
+                    documents["snapshot"]["monitoring"][field] = False
+
+                event, _ = self._fixture(invalidate)
+                with self.assertRaisesRegex(
+                    VALIDATOR.ValidationError, "fresh, signed, and LIVE"
+                ):
+                    self._validate(event)
 
     def test_ignores_mutable_reports_and_runs_as_release_truth(self) -> None:
         event, _ = self._fixture()

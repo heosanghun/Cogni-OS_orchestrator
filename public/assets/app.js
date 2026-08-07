@@ -1,6 +1,7 @@
 // Cogni-OS Evidence Operations — no synthetic operational defaults.
 const SVG_NS = "http://www.w3.org/2000/svg";
 const STATE_LABELS = {
+  UNBOUND_DEPLOYMENT: "배포 결속 미검증",
   LIVE: "서명 검증 LIVE",
   STALE: "STALE · 마지막 증거",
   NO_DATA: "서명 데이터 없음",
@@ -10,6 +11,7 @@ const STATE_LABELS = {
   FETCH_ERROR: "연결 오류",
 };
 const STATE_TITLES = {
+  UNBOUND_DEPLOYMENT: "서명된 데이터가 현재 배포와 소스 커밋에 결속되지 않아 운영 값을 숨겼습니다.",
   LIVE: "실제 운영 데이터가 서명·신선도 검증을 통과했습니다.",
   STALE: "마지막 증거는 유효하지만 최신 상태가 아닙니다.",
   NO_DATA: "서명 검증된 첫 운영 스냅샷을 기다립니다.",
@@ -62,9 +64,54 @@ let latestHistory = [];
 let refreshInFlight = false;
 
 function isLiveVerified(data) {
+  const sourceCommit = String(data?.source?.git_commit || "").toLowerCase();
+  const deploymentCommit = String(data?.deployment?.source_commit || "").toLowerCase();
+  const deploymentUrl = String(data?.deployment?.deployment_url || "");
+  let directDeployment = false;
+  try {
+    const parsed = new URL(deploymentUrl);
+    directDeployment =
+      parsed.protocol === "https:" &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.port &&
+      !parsed.search &&
+      !parsed.hash &&
+      ["", "/"].includes(parsed.pathname) &&
+      parsed.hostname !== "cogni-os-orchestrator.pages.dev" &&
+      parsed.hostname.endsWith(".cogni-os-orchestrator.pages.dev");
+  } catch {
+    directDeployment = false;
+  }
   return (
     data?.monitoring?.state === "LIVE" &&
-    data?.monitoring?.signature_verified === true
+    data?.monitoring?.signature_verified === true &&
+    data?.monitoring?.fresh === true &&
+    data?.monitoring?.current_source_commit_bound === true &&
+    data?.monitoring?.deployment_verified === true &&
+    typeof data?.monitoring?.age_seconds === "number" &&
+    Number.isFinite(data.monitoring.age_seconds) &&
+    data.monitoring.age_seconds >= 0 &&
+    typeof data?.monitoring?.max_age_seconds === "number" &&
+    Number.isFinite(data.monitoring.max_age_seconds) &&
+    data.monitoring.age_seconds <= data.monitoring.max_age_seconds &&
+    data?.deployment?.attribution === "BUILD_BOUND" &&
+    data?.deployment?.project === "cogni-os-orchestrator" &&
+    data?.deployment?.environment === "production" &&
+    data?.deployment?.branch === "main" &&
+    data?.deployment?.url === "https://cogni-os-orchestrator.pages.dev" &&
+    directDeployment &&
+    /^[0-9a-f]{40}$/.test(sourceCommit) &&
+    deploymentCommit === sourceCommit &&
+    data?.release_deployment?.api_verified === true &&
+    data?.release_deployment?.provider === "cloudflare-pages" &&
+    /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(
+      String(data?.release_deployment?.deployment_id || ""),
+    ) &&
+    data?.release_deployment?.canonical_url ===
+      "https://cogni-os-orchestrator.pages.dev" &&
+    data?.release_deployment?.source_commit === sourceCommit &&
+    data?.release_deployment?.deployment_url === data?.deployment?.deployment_url
   );
 }
 
@@ -676,6 +723,10 @@ function renderHistory() {
 function renderDashboard(data) {
   const safeData = evidenceSafeView(data);
   latestSnapshot = safeData;
+  if (!isLiveVerified(safeData)) {
+    latestHistory = [];
+    renderHistory();
+  }
   renderTrust(safeData);
   renderMission(safeData);
   renderKpis(safeData);
@@ -740,7 +791,9 @@ async function refreshHistory() {
     const response = await fetchWithTimeout("/api/history?limit=120");
     if (!response.ok) return;
     const data = await response.json();
-    latestHistory = data.ok ? asArray(data.history) : [];
+    latestHistory = data.ok && isLiveVerified(latestSnapshot)
+      ? asArray(data.history)
+      : [];
     renderHistory();
   } catch {
     latestHistory = [];

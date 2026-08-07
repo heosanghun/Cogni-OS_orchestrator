@@ -12,6 +12,7 @@ import {
   deploymentAttribution,
   failClosedSnapshot,
   hmacHex,
+  operationalSnapshotTrusted,
   sha256Hex,
   signatureMessage,
   validateSnapshot,
@@ -707,7 +708,17 @@ test("deployment attribution is server-owned and fail-closed", () => {
   assert.equal(deploymentAttribution({}).attribution, "UNAVAILABLE");
 
   const claimedPass = {
+    workspace_id: WORKSPACE,
     source: { git_commit: commit },
+    monitoring: {
+      state: "LIVE",
+      signature_verified: true,
+      age_seconds: 1,
+      max_age_seconds: 180,
+      sequence: 7,
+    },
+    gpus: [{ id: 0 }],
+    tasks: [{ id: "P02-ORCHESTRATION" }],
     alerts: [],
     release_deployment: {
       api_verified: true,
@@ -730,6 +741,14 @@ test("deployment attribution is server-owned and fail-closed", () => {
   assert.equal(downgraded.release_gate.status, "NO_GO");
   assert.equal(downgraded.release_gate.evidence_sha256, null);
   assert.equal(downgraded.alerts[0].code, "UNBOUND_DEPLOYMENT");
+  assert.equal(downgraded.monitoring.state, "UNBOUND_DEPLOYMENT");
+  assert.equal(downgraded.monitoring.signature_verified, false);
+  assert.equal(downgraded.monitoring.payload_signature_verified, true);
+  assert.equal(downgraded.monitoring.current_source_commit_bound, false);
+  assert.equal(downgraded.monitoring.deployment_verified, false);
+  assert.deepEqual(downgraded.gpus, []);
+  assert.deepEqual(downgraded.tasks, []);
+  assert.equal(operationalSnapshotTrusted(downgraded, downgraded.deployment), false);
 
   const bound = bindDeploymentTruth(
     claimedPass,
@@ -747,6 +766,20 @@ test("deployment attribution is server-owned and fail-closed", () => {
     ),
   );
   assert.equal(bound.release_gate.status, "PASS");
+  assert.equal(bound.monitoring.state, "LIVE");
+  assert.equal(bound.monitoring.fresh, true);
+  assert.equal(bound.monitoring.current_source_commit_bound, true);
+  assert.equal(bound.monitoring.deployment_verified, true);
+  assert.equal(operationalSnapshotTrusted(bound, bound.deployment), true);
+  for (const age of [null, "1", -1, 181, Number.NaN]) {
+    assert.equal(
+      operationalSnapshotTrusted(
+        { ...bound, monitoring: { ...bound.monitoring, age_seconds: age } },
+        bound.deployment,
+      ),
+      false,
+    );
+  }
 
   const wrongDirectDeployment = bindDeploymentTruth(
     {
@@ -820,7 +853,7 @@ test("unconfigured snapshot fails closed without synthetic telemetry", async () 
   assert.equal(data.release_gate.status, "NO_GO");
 });
 
-test("signed ingest becomes a LIVE snapshot", async () => {
+test("fresh signed ingest remains hidden when deployment is unbound", async () => {
   const database = new MemoryD1();
   const value = payload();
   const ingestResponse = await ingest({
@@ -842,10 +875,16 @@ test("signed ingest becomes a LIVE snapshot", async () => {
     },
   });
   const data = await snapshotResponse.json();
-  assert.equal(data.monitoring.state, "LIVE");
-  assert.equal(data.monitoring.signature_verified, true);
+  assert.equal(data.monitoring.state, "UNBOUND_DEPLOYMENT");
+  assert.equal(data.monitoring.signature_verified, false);
+  assert.equal(data.monitoring.payload_signature_verified, true);
+  assert.equal(data.monitoring.fresh, true);
+  assert.equal(data.monitoring.current_source_commit_bound, false);
+  assert.equal(data.monitoring.deployment_verified, false);
   assert.equal(data.monitoring.sequence, 1);
-  assert.equal(data.gpus.length, 1);
+  assert.deepEqual(data.gpus, []);
+  assert.deepEqual(data.tasks, []);
+  assert.equal(snapshotResponse.headers.get("X-Cogni-Data-State"), "UNBOUND_DEPLOYMENT");
 });
 
 test("publisher key IDs support rotation and reject unknown keys", async () => {
@@ -959,7 +998,7 @@ test("health rejects malformed same-name D1 schemas and constraints", async () =
   assert.equal(missingIndexBody.checks.storage_schema_verified, false);
 });
 
-test("history rows are signature-verified before graph projection", async () => {
+test("history rows require signature and current deployment binding", async () => {
   const database = new MemoryD1();
   const environment = {
     MONITOR_DB: database,
@@ -980,8 +1019,8 @@ test("history rows are signature-verified before graph projection", async () => 
     env: environment,
   });
   const validData = await valid.json();
-  assert.equal(validData.state, "AVAILABLE");
-  assert.equal(validData.history.length, 1);
+  assert.equal(validData.state, "NO_TRUSTED_DATA");
+  assert.deepEqual(validData.history, []);
 
   database.history[0].signature = "0".repeat(64);
   const corrupt = await history({
@@ -1265,6 +1304,10 @@ test("deployed UI contains no hard-coded GPU or VERIFIED defaults", async () => 
   assert.doesNotMatch(snapshotSource, /NVIDIA RTX A6000/);
   assert.doesNotMatch(snapshotSource, /tasks_summary:\s*\{\s*total:\s*20/);
   assert.doesNotMatch(appSource, /\.innerHTML\s*=/);
+  assert.match(appSource, /monitoring\?\.fresh === true/);
+  assert.match(appSource, /current_source_commit_bound === true/);
+  assert.match(appSource, /deployment_verified === true/);
+  assert.match(appSource, /deployment\?\.attribution === "BUILD_BOUND"/);
   assert.match(html, /서명된 운영 스냅샷 대기/);
   assert.doesNotMatch(html, /GPU 6 NVIDIA/);
 });

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 const EXPECTED_WEB_TESTS = 36;
 const EXPECTED_WEB_TEST_INVENTORY_SHA256 =
-  "91b335b0655f5a22e145f01b167b3f8845d420b89a75b1292ccb6ea9de0f2fd4";
+  "bdd1cb75a067b72f364d9a31d38946e2765628c39997f2dedcc10c3ae0ae4164";
 
 function run(args) {
   return spawnSync(process.execPath, args, {

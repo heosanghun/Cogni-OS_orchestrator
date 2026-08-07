@@ -1,8 +1,13 @@
 import {
+  DEFAULT_MAX_AGE_SECONDS,
+  bindDeploymentTruth,
+  deploymentAttribution,
   errorResponse,
   jsonResponse,
+  operationalSnapshotTrusted,
   parseHmacKeys,
   verifyStoredRow,
+  withMonitoringEnvelope,
 } from "../_lib/monitoring.js";
 
 function boundedLimit(request) {
@@ -12,12 +17,21 @@ function boundedLimit(request) {
   return Math.min(240, Math.max(1, requested));
 }
 
-async function projectHistoryRow(row, hmacKeys) {
+async function projectHistoryRow(row, hmacKeys, deployment, maxAgeSeconds, now) {
   const secret = hmacKeys.get(row.key_id);
   if (!secret) {
     throw new Error("stored snapshot publisher key is not active");
   }
   const payload = await verifyStoredRow(row, secret);
+  const bound = bindDeploymentTruth(
+    withMonitoringEnvelope(
+      payload,
+      { ...row, max_age_seconds: maxAgeSeconds },
+      now,
+    ),
+    deployment,
+  );
+  if (!operationalSnapshotTrusted(bound, deployment)) return null;
   return {
     sequence: Number(row.sequence),
     observed_at: row.observed_at,
@@ -62,16 +76,23 @@ export async function onRequest(context) {
     )
       .bind(workspaceId, boundedLimit(request))
       .all();
+    const deployment = deploymentAttribution(env);
+    const maxAgeSeconds = Number(
+      env.MAX_SNAPSHOT_AGE_SECONDS || DEFAULT_MAX_AGE_SECONDS,
+    );
+    const now = new Date();
     const history = (
       await Promise.all(
         (result.results || []).map((row) =>
-          projectHistoryRow(row, hmacKeys),
+          projectHistoryRow(row, hmacKeys, deployment, maxAgeSeconds, now),
         ),
       )
-    ).reverse();
+    )
+      .filter((entry) => entry !== null)
+      .reverse();
     return jsonResponse({
       ok: true,
-      state: "AVAILABLE",
+      state: history.length ? "AVAILABLE" : "NO_TRUSTED_DATA",
       workspace_id: workspaceId,
       history,
     });

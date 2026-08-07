@@ -114,7 +114,7 @@ export async function onRequest(context) {
     deploymentAttribution(env),
   );
   return jsonResponse(responseSnapshot, 200, {
-    "X-Cogni-Data-State": snapshot.monitoring.state,
+    "X-Cogni-Data-State": responseSnapshot.monitoring.state,
     "X-Cogni-Sequence": String(snapshot.monitoring.sequence),
     "X-Cogni-Body-SHA256": row.body_sha256,
   });
