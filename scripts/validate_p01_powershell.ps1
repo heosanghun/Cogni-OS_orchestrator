@@ -760,6 +760,10 @@ try {
         'not-a-secure-string' | Export-Clixml `
             -LiteralPath $context.plaintext_secret `
             -Force
+        # Match the already-validated secret file boundary so this regression
+        # reaches the payload-type check instead of failing earlier on ACLs.
+        $plaintextAcl = Get-Acl -LiteralPath $context.valid_secret
+        Set-Acl -LiteralPath $context.plaintext_secret -AclObject $plaintextAcl
         Remove-Item -LiteralPath $context.fake_marker `
             -Force `
             -ErrorAction SilentlyContinue

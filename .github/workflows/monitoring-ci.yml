@@ -22,6 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Fixed-inventory Python trust validator
         env:
+          COGNI_TEST_DIAGNOSTICS: "1"
           PYTHONDONTWRITEBYTECODE: "1"
         run: python -I scripts/validate_python_test_inventory.py
       - name: Immutable operational evidence history
@@ -142,8 +143,9 @@ jobs:
           set -euo pipefail
           sudo install -d -o root -g root -m 0755 /var/lib/cogni-os
           sudo install -d -o root -g root -m 0755 /var/lib/cogni-os/snapshot-broker
-          sudo install -o root -g root -m 0444 "$WHEEL_PATH" /var/lib/cogni-os/snapshot-broker/cogni_os.whl
-          installed_sha256="$(sudo sha256sum /var/lib/cogni-os/snapshot-broker/cogni_os.whl | cut -d ' ' -f 1)"
+          staged_wheel=/var/lib/cogni-os/snapshot-broker/cogni_os-1.0.0-py3-none-any.whl
+          sudo install -o root -g root -m 0444 "$WHEEL_PATH" "$staged_wheel"
+          installed_sha256="$(sudo sha256sum "$staged_wheel" | cut -d ' ' -f 1)"
           test "$installed_sha256" = "$WHEEL_SHA256"
           sudo /bin/sh scripts/install_snapshot_broker.sh
           sudo cmp --silent deploy/systemd/cogni-snapshot-broker.service /etc/systemd/system/cogni-snapshot-broker.service
@@ -245,6 +247,7 @@ jobs:
           set +e
           sudo journalctl --unit=cogni-snapshot-broker.service --no-pager --lines=80 --output=short-iso | head -c 65536
           sudo systemctl status cogni-snapshot-broker.service --no-pager --lines=40 | head -c 32768
+          exit 0
 
       - name: Always remove ephemeral broker material
         if: ${{ always() }}

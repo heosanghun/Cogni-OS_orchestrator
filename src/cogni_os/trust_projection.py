@@ -7,6 +7,7 @@ import json
 import os
 import re
 import stat
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -67,6 +68,27 @@ SAFE_BROKER_FD_ALIAS = re.compile(r"^/proc/self/fd/[1-9][0-9]*$")
 # acquisition and cleanup signatures from the root broker.  Neither branch is
 # an execution-success attestation; that is a separate trust domain below.
 EXTERNAL_BROKER_SIGNATURE_VERIFICATION_AVAILABLE = False
+
+
+def _diagnostic_false_return_line(callback: Any) -> int | None:
+    """Return only the code line of a fail-closed predicate for CI diagnosis."""
+
+    target = _valid_trusted_verification.__code__
+    rejected_at: int | None = None
+    previous = sys.gettrace()
+
+    def trace(frame: Any, event: str, value: Any) -> Any:
+        nonlocal rejected_at
+        if frame.f_code is target and event == "return" and value is False:
+            rejected_at = frame.f_lineno
+        return trace
+
+    sys.settrace(trace)
+    try:
+        callback()
+    finally:
+        sys.settrace(previous)
+    return rejected_at
 
 
 def _signed_broker_protection_valid(
@@ -1730,14 +1752,31 @@ def task_trust_projection(
         independent = (
             isinstance(independence, dict) and independence.get("independent") is True
         )
-        if not independent or not _valid_trusted_verification(
+        trusted_valid = _valid_trusted_verification(
             verification,
             task=task,
             current_commit=None,
             workspace_root=workspace_root.resolve(),
             bundle=bundle,
             bundle_directory=bundle_directory,
-        ):
+        )
+        if not independent or not trusted_valid:
+            if not trusted_valid and os.environ.get("COGNI_TEST_DIAGNOSTICS") == "1":
+                rejected_at = _diagnostic_false_return_line(
+                    lambda: _valid_trusted_verification(
+                        verification,
+                        task=task,
+                        current_commit=None,
+                        workspace_root=workspace_root.resolve(),
+                        bundle=bundle,
+                        bundle_directory=bundle_directory,
+                    )
+                )
+                print(
+                    "COGNI_TRUST_DIAGNOSTIC "
+                    f"task={task.get('id')} rejected_at={rejected_at}",
+                    file=sys.stderr,
+                )
             raise ValueError("historical verification proof is invalid")
         trusted = verification["trusted_validation"]
         verified_source_commit = str(trusted["source_commit"]).lower()

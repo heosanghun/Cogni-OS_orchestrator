@@ -6,7 +6,7 @@ set -eu
 OPENSSL=/usr/bin/openssl
 SYSTEM_PYTHON=/usr/bin/python3
 STAGING_ROOT=/var/lib/cogni-os/snapshot-broker
-WHEEL="$STAGING_ROOT/cogni_os.whl"
+WHEEL="$STAGING_ROOT/cogni_os-1.0.0-py3-none-any.whl"
 RUNTIME_ROOT=/opt/cogni-os/snapshot-broker-v1
 PYTHON="$RUNTIME_ROOT/venv/bin/python"
 KEY_ROOT=/etc/cogni-os/snapshot-broker

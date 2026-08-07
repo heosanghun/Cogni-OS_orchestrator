@@ -71,6 +71,13 @@ def main() -> int:
     stream = io.StringIO()
     with contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream):
         result = unittest.TextTestRunner(stream=stream, verbosity=0).run(suite)
+    captured_diagnostics = sorted(
+        {
+            line.strip()[:384]
+            for line in stream.getvalue().splitlines()
+            if line.startswith("COGNI_TRUST_DIAGNOSTIC ")
+        }
+    )[:16]
     record = {
         "passed": False,
         "python": f"{sys.version_info.major}.{sys.version_info.minor}",
@@ -86,6 +93,7 @@ def main() -> int:
         "expected_tests": policy.EXPECTED_PYTHON_TESTS,
         "expected_inventory_sha256": policy.EXPECTED_TEST_INVENTORY_SHA256,
         "delegated_integration": integration,
+        "trust_diagnostics": captured_diagnostics,
     }
     record["passed"] = bool(
         record["errors"] == 0
