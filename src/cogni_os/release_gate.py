@@ -1042,9 +1042,31 @@ def issue_release_gate(
     # operation.  Platforms without descriptor-relative no-follow traversal
     # cannot safely bind an archive path and therefore receive an honest NO_GO.
     _require_secure_archive_primitives()
-    # Do not disclose whether the release task exists before the conductor has
-    # proved authority.  Attempt 1 is only a provisional authorization scope;
-    # a successfully authorized caller must still bind the actual task below.
+    # First consume and independently validate an unbound admission capability.
+    # No task/Git/ledger/archive state may be read before this authorization.
+    # A second receipt below binds the exact P01 attempt after the caller has
+    # also been proven to be the accountable workspace orchestrator.
+    admission_receipt = workspace.authorize_actor_capability(
+        actor=actor,
+        operation="release.gate.issue",
+        capability_secret=capability_secret,
+        require_actor_os_isolation=True,
+        task_id=None,
+        run_id=None,
+        task_attempt=None,
+    )
+    _validated_actor_capability_receipt(
+        admission_receipt,
+        workspace=workspace,
+        actor=actor,
+        operation="release.gate.issue",
+        task_id=None,
+        run_id=None,
+        task_attempt=None,
+    )
+    if actor != workspace.orchestrator:
+        raise AuthorizationError("Only the accountable orchestrator can issue a gate")
+
     try:
         p01_task = workspace.get_task(P01_TASK_ID)
     except ConfigurationError:
@@ -1061,6 +1083,15 @@ def issue_release_gate(
         operation="release.gate.issue",
         capability_secret=capability_secret,
         require_actor_os_isolation=True,
+        task_id=P01_TASK_ID,
+        run_id=None,
+        task_attempt=p01_attempt,
+    )
+    capability_receipt = _validated_actor_capability_receipt(
+        capability_receipt,
+        workspace=workspace,
+        actor=actor,
+        operation="release.gate.issue",
         task_id=P01_TASK_ID,
         run_id=None,
         task_attempt=p01_attempt,

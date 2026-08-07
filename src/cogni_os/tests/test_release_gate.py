@@ -503,6 +503,51 @@ class ReleaseGateTestCase(unittest.TestCase):
             )
         )
 
+    def test_denied_admission_cannot_disclose_release_task(self) -> None:
+        with (
+            patch.object(
+                release_gate_module,
+                "_require_secure_archive_primitives",
+                return_value=None,
+            ),
+            patch.object(
+                Workspace,
+                "authorize_actor_capability",
+                side_effect=AuthorizationError("denied"),
+            ),
+            patch.object(
+                Workspace,
+                "get_task",
+                side_effect=AssertionError("task state was disclosed"),
+            ),
+        ):
+            with self.assertRaisesRegex(AuthorizationError, "denied"):
+                issue_release_gate(
+                    self.workspace,
+                    actor="codex",
+                    attesting_agent_id="antigravity",
+                )
+
+    def test_authenticated_non_orchestrator_cannot_disclose_release_task(self) -> None:
+        with (
+            patch.object(
+                release_gate_module,
+                "_require_secure_archive_primitives",
+                return_value=None,
+            ),
+            patch.object(
+                Workspace,
+                "get_task",
+                side_effect=AssertionError("task state was disclosed"),
+            ),
+        ):
+            with self.assertRaisesRegex(AuthorizationError, "accountable orchestrator"):
+                issue_release_gate(
+                    self.workspace,
+                    actor="antigravity",
+                    attesting_agent_id="antigravity",
+                )
+
     def test_wrong_commit_and_new_clean_commit_fail_closed(self) -> None:
         if not self._positive_archive_or_assert_platform_no_go():
             return
