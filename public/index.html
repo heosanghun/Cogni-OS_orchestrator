@@ -110,9 +110,9 @@
         <span class="kpi-note" id="kpi-verified-note">측정 전</span>
       </article>
       <article class="kpi">
-        <span class="kpi-label">GPU 0–5 Usage</span>
+        <span class="kpi-label">Verified GPU Usage</span>
         <strong id="kpi-gpu">—</strong>
-        <span class="kpi-note" id="kpi-gpu-note">GPU 6·7 수집 금지</span>
+        <span class="kpi-note" id="kpi-gpu-note">서명된 GPU 증거 대기</span>
       </article>
       <article class="kpi">
         <span class="kpi-label">Disk</span>
@@ -179,10 +179,10 @@
     <section class="section-band" aria-labelledby="gpu-heading">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">RESEARCH-LAB GPU POLICY</p>
-          <h2 id="gpu-heading">GPU 0~5 전용 관제</h2>
+          <p class="eyebrow">SIGNED GPU EVIDENCE</p>
+          <h2 id="gpu-heading">검증된 GPU 관제</h2>
         </div>
-        <span class="section-meta" id="gpu-policy">GPU 6·7 항상 거부</span>
+        <span class="section-meta" id="gpu-policy">GPU 정책 UNVERIFIED</span>
       </div>
       <div class="empty-state" id="gpu-empty">GPU 텔레메트리 미수집</div>
       <div class="gpu-list" id="gpu-list"></div>
@@ -192,7 +192,7 @@
       <article class="chart-panel">
         <div class="chart-heading">
           <div>
-            <p class="eyebrow">GPU 0–5</p>
+            <p class="eyebrow">VERIFIED GPU TELEMETRY</p>
             <h2>평균 사용률 추이</h2>
           </div>
           <span id="util-range">서명 이력 대기</span>
@@ -297,7 +297,7 @@
   <footer class="site-footer">
     <p>
       Outbound metadata only · HMAC-SHA256 · monotonic sequence · nonce replay guard ·
-      GPU 0–5 allowlist
+      signed GPU policy required
     </p>
   </footer>
 </body>

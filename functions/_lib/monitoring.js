@@ -1902,8 +1902,11 @@ export function failClosedSnapshot(
     },
     gpus: [],
     gpu_policy: {
-      allowed_ids: [0, 1, 2, 3, 4, 5],
-      denied_ids: [6, 7],
+      // A fail-closed document is not a signed policy source.  Empty both
+      // lists so API consumers cannot mistake deployment defaults for an
+      // observed, workspace-bound GPU boundary.
+      allowed_ids: [],
+      denied_ids: [],
       telemetry_state: "UNMEASURED",
       violating_ids: [],
       measurement_complete: false,
@@ -2008,8 +2011,11 @@ export function withMonitoringEnvelope(payload, row, now = new Date()) {
     };
     copy.gpus = [];
     copy.gpu_policy = {
-      allowed_ids: [0, 1, 2, 3, 4, 5],
-      denied_ids: [6, 7],
+      // A stale signature proves historical bytes, not the current lab
+      // boundary.  Withhold the allow/deny projection until a fresh signed
+      // snapshot is available.
+      allowed_ids: [],
+      denied_ids: [],
       telemetry_state: "UNMEASURED",
       violating_ids: [],
       measurement_complete: false,

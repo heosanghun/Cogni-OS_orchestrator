@@ -1165,6 +1165,8 @@ test("stale snapshot is never labeled LIVE", async () => {
   assert.deepEqual(stale.agents, []);
   assert.deepEqual(stale.tasks, []);
   assert.deepEqual(stale.gpus, []);
+  assert.deepEqual(stale.gpu_policy.allowed_ids, []);
+  assert.deepEqual(stale.gpu_policy.denied_ids, []);
   assert.equal(stale.gpu_policy.telemetry_state, "UNMEASURED");
   assert.equal(stale.gpu_policy.measurement_complete, false);
   assert.equal(stale.release_deployment, null);
@@ -1178,6 +1180,8 @@ test("stale snapshot is never labeled LIVE", async () => {
   assert.equal(closed.snapshot_schema_version, null);
   assert.equal(closed.schema_version, undefined);
   assert.equal(closed.monitoring.signature_verified, false);
+  assert.deepEqual(closed.gpu_policy.allowed_ids, []);
+  assert.deepEqual(closed.gpu_policy.denied_ids, []);
   assert.equal(closed.release_gate.status, "NO_GO");
 });
 
@@ -1264,6 +1268,8 @@ test("stored payload tampering fails closed at read time", async () => {
   assert.equal(data.monitoring.state, "CORRUPT");
   assert.equal(data.monitoring.signature_verified, false);
   assert.deepEqual(data.tasks, []);
+  assert.deepEqual(data.gpu_policy.allowed_ids, []);
+  assert.deepEqual(data.gpu_policy.denied_ids, []);
   assert.equal(data.release_gate.status, "NO_GO");
 });
 
@@ -1308,6 +1314,12 @@ test("deployed UI contains no hard-coded GPU or VERIFIED defaults", async () => 
   assert.match(appSource, /current_source_commit_bound === true/);
   assert.match(appSource, /deployment_verified === true/);
   assert.match(appSource, /deployment\?\.attribution === "BUILD_BOUND"/);
+  assert.doesNotMatch(appSource, /GPU 0~5/);
+  assert.doesNotMatch(appSource, /GPU 6·7 DENIED/);
+  assert.match(appSource, /GPU 정책 UNVERIFIED/);
   assert.match(html, /서명된 운영 스냅샷 대기/);
-  assert.doesNotMatch(html, /GPU 6 NVIDIA/);
+  assert.doesNotMatch(html, /GPU\s*0\s*[~–-]\s*5/i);
+  assert.doesNotMatch(html, /GPU\s*6\s*[·,/]?\s*7/i);
+  assert.doesNotMatch(html, /GPU\s+6\s+NVIDIA/i);
+  assert.match(html, /GPU 정책 UNVERIFIED/);
 });

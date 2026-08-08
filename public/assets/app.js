@@ -176,8 +176,8 @@ function evidenceSafeView(raw) {
     },
     gpus: [],
     gpu_policy: {
-      allowed_ids: [0, 1, 2, 3, 4, 5],
-      denied_ids: [6, 7],
+      allowed_ids: [],
+      denied_ids: [],
       telemetry_state: "UNMEASURED",
       violating_ids: [],
       measurement_complete: false,
@@ -529,9 +529,22 @@ function renderGpus(data) {
   const gpus = asArray(data.gpus).filter((gpu) => gpu.id >= 0 && gpu.id <= 5);
   const list = byId("gpu-list");
   setEmpty("gpu-empty", "gpu-list", gpus.length === 0);
+  const policyIsCurrent =
+    data.monitoring?.state === "LIVE" &&
+    data.monitoring?.signature_verified === true &&
+    Array.isArray(data.gpu_policy?.allowed_ids) &&
+    Array.isArray(data.gpu_policy?.denied_ids);
+  const allowed = policyIsCurrent
+    ? data.gpu_policy.allowed_ids.map((id) => `GPU ${id}`).join(", ")
+    : "";
+  const denied = policyIsCurrent
+    ? data.gpu_policy.denied_ids.map((id) => `GPU ${id}`).join(", ")
+    : "";
   text(
     "gpu-policy",
-    `GPU 0~5 ${data.gpu_policy?.measurement_complete === true ? "FULLY MEASURED" : "UNMEASURED · NO_GO"} · GPU 6·7 DENIED`,
+    policyIsCurrent
+      ? `허용 ${allowed || "없음"} · 금지 ${denied || "없음"} · ${data.gpu_policy?.measurement_complete === true ? "FULLY MEASURED" : "UNMEASURED · NO_GO"}`
+      : "GPU 정책 UNVERIFIED · 서명된 최신 정책 없음 · release NO_GO",
   );
   if (!list) return;
   const cards = gpus.map((gpu) => {
