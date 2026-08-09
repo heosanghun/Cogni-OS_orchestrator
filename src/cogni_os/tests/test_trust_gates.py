@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -27,12 +28,17 @@ from cogni_os.independence import (
     evaluate_independence,
 )
 from cogni_os.ledger import GENESIS_HASH
+from cogni_os.phase_evidence import (
+    PHASE_EVIDENCE_REQUIREMENTS,
+    PHASE_REQUIREMENT_TEST_SELECTORS,
+    audit_phase_task,
+)
 from cogni_os.tests._actor_capability_test_support import (
     install_legacy_capability_fixture,
 )
 from cogni_os.tests._isolation_test_support import install_direct_isolation_fixture
-from cogni_os.trusted_runner import TRUSTED_RECEIPT_RESULT_KEYS
 from cogni_os.trust_projection import task_trust_projection, task_trust_state
+from cogni_os.trusted_runner import TRUSTED_RECEIPT_RESULT_KEYS
 from cogni_os.util import canonical_json
 from cogni_os.verifier_attestation_protocol import VerifierAttestationError
 from cogni_os.workspace import Workspace
@@ -533,9 +539,7 @@ class TrustGateTestCase(unittest.TestCase):
             verified["verification"]["verifier_evidence"]["manifest_sha256"],
         )
         self.assertEqual(
-            verified["verification"]["verifier_evidence"][
-                "executor_attestation"
-            ],
+            verified["verification"]["verifier_evidence"]["executor_attestation"],
             {"schema_version": 0, "test_only": True},
         )
         self.assertTrue(Path(trusted["receipt_path"]).is_file())
@@ -625,6 +629,25 @@ class TrustGateTestCase(unittest.TestCase):
             "verification_disputed",
         )
 
+        # Phase semantics must come from the signed verified task.  Adding or
+        # replacing a manifest envelope after verification cannot inherit the
+        # earlier trust decision from the mutable projection file.
+        forged_result = deepcopy(verified)
+        forged_result["result"]["manifest"]["phase_evidence"] = {
+            "schema": "cogni.phase-evidence.v1",
+            "phase_id": verified["id"],
+            "source_commit": current_commit,
+            "requirements": [],
+        }
+        self.assertEqual(
+            task_trust_state(
+                forged_result,
+                current_commit=current_commit,
+                workspace_root=self.root,
+            ),
+            "verification_disputed",
+        )
+
         # The signed event binds the immutable bundle.json bytes.  Retained
         # files are never trusted only because they appear in an inline list.
         bundle_path = Path(
@@ -684,6 +707,241 @@ class TrustGateTestCase(unittest.TestCase):
                 ),
                 "verification_disputed",
             )
+
+    def test_signed_phase_evidence_passes_real_submit_verify_audit_chain(self) -> None:
+        phase_id = "P01-TRUTH"
+        requirements = PHASE_EVIDENCE_REQUIREMENTS[phase_id]
+        acceptance_directory = self.root / "src" / "cogni_os" / "tests" / "acceptance"
+        acceptance_directory.mkdir(parents=True)
+        for package_directory in (
+            self.root / "src" / "cogni_os",
+            self.root / "src" / "cogni_os" / "tests",
+            acceptance_directory,
+        ):
+            (package_directory / "__init__.py").write_text("", encoding="utf-8")
+        methods = "\n".join(
+            (
+                f"    def test_{requirement_id}(self):\n"
+                f"        print('P01::{requirement_id}')\n"
+                "        self.assertTrue(True)\n"
+            )
+            for requirement_id in requirements
+        )
+        (acceptance_directory / "test_p01_truth.py").write_text(
+            "import unittest\n"
+            "unittest.runner.time.perf_counter = lambda: 0.0\n"
+            "class PhaseAcceptanceTests(unittest.TestCase):\n"
+            f"{methods}",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "src"], cwd=self.root, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add canonical phase acceptance tests"],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+        )
+        source_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        validation_environment = dict(os.environ)
+        validation_environment.update(
+            {
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONPATH": str(self.root / "src"),
+            }
+        )
+        commands: list[list[str]] = []
+        outputs: list[bytes] = []
+        for requirement_id in requirements:
+            selector = PHASE_REQUIREMENT_TEST_SELECTORS[phase_id][requirement_id]
+            command = [sys.executable, "-m", "unittest", selector]
+            first = subprocess.run(
+                command,
+                cwd=self.root,
+                env=validation_environment,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            ).stdout
+            second = subprocess.run(
+                command,
+                cwd=self.root,
+                env=validation_environment,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            ).stdout
+            self.assertEqual(first, second)
+            self.assertIn(requirement_id.encode("ascii"), first)
+            commands.append(command)
+            outputs.append(first)
+
+        self.workspace.add_task(
+            actor="codex",
+            task_id=phase_id,
+            title="Canonical release truth evidence",
+            description="Exercise the signed Phase evidence chain.",
+            owner="antigravity",
+        )
+        claim = self.workspace.claim(actor="antigravity", task_id=phase_id)
+        self.workspace.start(
+            actor="antigravity",
+            task_id=phase_id,
+            lease_token=claim["lease_token"],
+        )
+        worker_directory = self.workspace.reports_dir / "antigravity"
+        worker_directory.mkdir(parents=True, exist_ok=True)
+        artifacts = []
+        bindings = []
+        for requirement_id, output in zip(requirements, outputs, strict=True):
+            artifact_path = worker_directory / f"{requirement_id}.json"
+            artifact_path.write_text(
+                json.dumps({"requirement_id": requirement_id, "measured": True}),
+                encoding="utf-8",
+            )
+            artifact_sha256 = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+            artifacts.append({"path": artifact_path.name, "sha256": artifact_sha256})
+            bindings.append(
+                {
+                    "requirement_id": requirement_id,
+                    "artifact_sha256": artifact_sha256,
+                    "trusted_output_sha256": hashlib.sha256(output).hexdigest(),
+                }
+            )
+        worker_output = worker_directory / "P01-worker.log"
+        worker_output.write_bytes(b"worker phase envelope assembled\n")
+        worker_manifest = worker_directory / "P01-worker.evidence.json"
+        worker_manifest.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifacts": artifacts,
+                    "validations": [
+                        {
+                            "command": "assemble P01 evidence envelope",
+                            "command_argv": [
+                                sys.executable,
+                                str(self.validation_helper),
+                                "emit",
+                                worker_output.read_bytes().hex(),
+                            ],
+                            "exit_code": 0,
+                            "passed": 1,
+                            "failed": 0,
+                            "skipped": 0,
+                            "raw_output_path": worker_output.name,
+                            "raw_output_sha256": hashlib.sha256(
+                                worker_output.read_bytes()
+                            ).hexdigest(),
+                        }
+                    ],
+                    "known_answer_checks": [
+                        {
+                            "name": "phase-envelope-shape",
+                            "expected": list(requirements),
+                            "observed": list(requirements),
+                            "passed": True,
+                        }
+                    ],
+                    "claims": [],
+                    "phase_evidence": {
+                        "schema": "cogni.phase-evidence.v1",
+                        "phase_id": phase_id,
+                        "source_commit": source_commit,
+                        "requirements": bindings,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.workspace.submit(
+            actor="antigravity",
+            task_id=phase_id,
+            lease_token=claim["lease_token"],
+            report_path=self._report(worker_directory, phase_id),
+            evidence_path=worker_manifest,
+        )
+
+        verifier_directory = self.workspace.reports_dir / "codex"
+        verifier_directory.mkdir(parents=True, exist_ok=True)
+        validations = []
+        for index, (command, output) in enumerate(zip(commands, outputs, strict=True)):
+            output_path = verifier_directory / f"P01-trusted-{index}.log"
+            output_path.write_bytes(output)
+            validations.append(
+                {
+                    "command": " ".join(command),
+                    "command_argv": command,
+                    "exit_code": 0,
+                    "passed": 1,
+                    "failed": 0,
+                    "skipped": 0,
+                    "raw_output_path": output_path.name,
+                    "raw_output_sha256": hashlib.sha256(output).hexdigest(),
+                }
+            )
+        verifier_manifest = verifier_directory / "P01-trusted.evidence.json"
+        verifier_manifest.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifacts": [],
+                    "validations": validations,
+                    "known_answer_checks": [
+                        {
+                            "name": "independent-phase-reproduction",
+                            "expected": list(requirements),
+                            "observed": list(requirements),
+                            "passed": True,
+                        }
+                    ],
+                    "claims": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        verified = self.workspace.verify(
+            actor="codex",
+            task_id=phase_id,
+            decision="accept",
+            note="Canonical Phase tests reproduced by the trusted runner.",
+            evidence_path=verifier_manifest,
+        )
+
+        result = audit_phase_task(
+            verified,
+            current_source_commit=source_commit,
+            workspace_root=self.root,
+        )
+        self.assertEqual(result["coverage_status"], "SEMANTIC_COVERAGE_PASS")
+        self.assertFalse(result["release_authority"])
+        trusted = verified["verification"]["trusted_validation"]
+        self.assertNotEqual(
+            verified["result"]["manifest"]["manifest_sha256"],
+            verified["verification"]["verifier_evidence"]["manifest_sha256"],
+        )
+        self.assertEqual(
+            result["trusted_output_sha256"],
+            [validation["output_sha256"] for validation in trusted["validations"]],
+        )
+
+        forged = deepcopy(verified)
+        forged["result"]["manifest"]["phase_evidence"]["requirements"][0][
+            "artifact_sha256"
+        ] = "f" * 64
+        forged_result = audit_phase_task(
+            forged,
+            current_source_commit=source_commit,
+            workspace_root=self.root,
+        )
+        self.assertEqual(forged_result["coverage_status"], "NO_GO")
+        self.assertIn("TASK_TRUST_NOT_CURRENT", forged_result["reasons"])
 
     def test_restatement_removes_valid_proof_from_both_trust_axes(self) -> None:
         for task_id, effective_status in (
@@ -922,8 +1180,7 @@ class TrustGateTestCase(unittest.TestCase):
             event
             for event in self.workspace.ledger.read_verified()
             if event.get("task_id") == task_id
-            and event.get("action")
-            in {"verification.started", "verification.failed"}
+            and event.get("action") in {"verification.started", "verification.failed"}
         ]
         self.assertEqual(
             [event["action"] for event in lifecycle],

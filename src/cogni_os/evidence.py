@@ -35,6 +35,19 @@ PLACEHOLDER_VALUES = {
 MAX_MANIFEST_BYTES = 4 * 1024 * 1024
 
 
+def _strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, child in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON member: {key}")
+        value[key] = child
+    return value
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant: {value}")
+
+
 def _stat_identity(value: os.stat_result) -> tuple[int, int, int, int]:
     """Return the fields used to detect replacement or mutation during a read."""
 
@@ -59,8 +72,7 @@ def _read_manifest_once(manifest_path: Path) -> tuple[dict[str, Any], str]:
             before = os.fstat(handle.fileno())
             if before.st_size > MAX_MANIFEST_BYTES:
                 raise EvidenceError(
-                    "Evidence manifest exceeds the "
-                    f"{MAX_MANIFEST_BYTES}-byte limit"
+                    f"Evidence manifest exceeds the {MAX_MANIFEST_BYTES}-byte limit"
                 )
             content = handle.read(MAX_MANIFEST_BYTES + 1)
             after = os.fstat(handle.fileno())
@@ -85,8 +97,12 @@ def _read_manifest_once(manifest_path: Path) -> tuple[dict[str, Any], str]:
 
     try:
         decoded = content.decode("utf-8")
-        manifest = json.loads(decoded)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        manifest = json.loads(
+            decoded,
+            object_pairs_hook=_strict_object,
+            parse_constant=_reject_json_constant,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise EvidenceError(
             f"Evidence manifest is not valid UTF-8 JSON: {manifest_path}: {exc}"
         ) from exc
@@ -206,6 +222,7 @@ def validate_manifest(
     validations = manifest.get("validations", [])
     known_checks = manifest.get("known_answer_checks", [])
     claims = manifest.get("claims", [])
+    phase_evidence = manifest.get("phase_evidence")
     for name, value in (
         ("artifacts", artifacts),
         ("validations", validations),
@@ -255,18 +272,17 @@ def validate_manifest(
         if not isinstance(command, str) or not command.strip():
             raise EvidenceError(f"{context}.command must be a non-empty string")
         command_argv = validation.get("command_argv")
-        if command_argv is not None or require_command_argv:
-            if (
-                not isinstance(command_argv, list)
-                or not command_argv
-                or any(
-                    not isinstance(argument, str) or not argument
-                    for argument in command_argv
-                )
-            ):
-                raise EvidenceError(
-                    f"{context}.command_argv must be a non-empty string array"
-                )
+        if (command_argv is not None or require_command_argv) and (
+            not isinstance(command_argv, list)
+            or not command_argv
+            or any(
+                not isinstance(argument, str) or not argument
+                for argument in command_argv
+            )
+        ):
+            raise EvidenceError(
+                f"{context}.command_argv must be a non-empty string array"
+            )
         exit_code = _require_int(validation, "exit_code", context)
         passed = _require_int(validation, "passed", context)
         failed = _require_int(validation, "failed", context)
@@ -294,7 +310,9 @@ def validate_manifest(
         raw_output_sha = validation.get("raw_output_sha256")
         if not isinstance(raw_output, str) or not raw_output:
             raise EvidenceError(f"{context}.raw_output_path must be a non-empty string")
-        if not isinstance(raw_output_sha, str) or not SHA256_RE.fullmatch(raw_output_sha):
+        if not isinstance(raw_output_sha, str) or not SHA256_RE.fullmatch(
+            raw_output_sha
+        ):
             raise EvidenceError(f"{context}.raw_output_sha256 must be a full SHA-256")
         output_path = _resolve_evidence_path(
             raw_output,
@@ -307,9 +325,7 @@ def validate_manifest(
             raise EvidenceError(f"Raw validation output is empty: {output_path}")
         observed_output_sha = sha256_file(output_path)
         if not hmac.compare_digest(raw_output_sha.lower(), observed_output_sha):
-            raise EvidenceError(
-                f"Raw validation output SHA mismatch for {output_path}"
-            )
+            raise EvidenceError(f"Raw validation output SHA mismatch for {output_path}")
         raw_output_result = {
             "path": str(output_path),
             "sha256": observed_output_sha,
@@ -360,7 +376,10 @@ def validate_manifest(
                 f"{context} claims performance metrics without task permission"
             )
 
-    return {
+    if phase_evidence is not None and not isinstance(phase_evidence, dict):
+        raise EvidenceError("Evidence manifest phase_evidence must be an object")
+
+    result = {
         "manifest_path": str(manifest_path.resolve()),
         "manifest_sha256": manifest_sha256,
         "artifacts": artifact_results,
@@ -373,6 +392,9 @@ def validate_manifest(
             "skipped": total_skipped,
         },
     }
+    if phase_evidence is not None:
+        result["phase_evidence"] = phase_evidence
+    return result
 
 
 def validate_submission(

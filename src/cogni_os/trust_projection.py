@@ -1044,7 +1044,7 @@ def _authoritative_verification(
 
     # The mutable task file is only a projection.  Every security-relevant
     # field must agree with the signed task.verified snapshot.
-    for name in ("id", "attempt", "permissions", "verification"):
+    for name in ("id", "attempt", "permissions", "result", "verification"):
         if task.get(name) != signed_task.get(name):
             return None
     if task.get("state") == "verified" and signed_task.get("state") != "verified":
