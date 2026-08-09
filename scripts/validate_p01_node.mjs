@@ -2,9 +2,9 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
-const EXPECTED_WEB_TESTS = 36;
+const EXPECTED_WEB_TESTS = 42;
 const EXPECTED_WEB_TEST_INVENTORY_SHA256 =
-  "bdd1cb75a067b72f364d9a31d38946e2765628c39997f2dedcc10c3ae0ae4164";
+  "ab17b427033bf59cc8cb5d57316cad9d5ddb92b26411ce99316b69e0572ae53f";
 
 function run(args) {
   return spawnSync(process.execPath, args, {
@@ -46,6 +46,7 @@ const syntaxTargets = [
   "functions/api/snapshot.js",
   "functions/api/history.js",
   "scripts/generate_deployment_attribution.mjs",
+  "scripts/probe_monitoring_production.mjs",
   "scripts/validate_p01_node.mjs",
 ];
 const syntaxPassed = syntaxTargets.filter(

@@ -410,6 +410,53 @@ state, `BUILD_BOUND` commit을 모두 요구합니다.
 고유 deployment URL이 응답의 `release_deployment` 및 빌드 귀속과 정확히
 일치해야 합니다. 같은 commit의 다른 deployment도 `NO_GO`입니다.
 
+## 보호된 운영 복구와 재현 가능한 판정
+
+운영 복구는 `.github/workflows/monitoring-production-recovery.yml`의
+`workflow_dispatch`로만 수행합니다. 일반 push와 pull request는 D1을 변경하거나
+Pages 배포 훅을 호출하지 않습니다. 저장소에는 비밀값을 넣지 않고 다음 GitHub
+Actions secret 이름만 사용합니다.
+
+- `CLOUDFLARE_API_TOKEN`: 해당 D1 migration을 적용할 수 있는 최소 권한 토큰
+- `CLOUDFLARE_ACCOUNT_ID`: D1이 속한 Cloudflare 계정 ID
+- `CLOUDFLARE_PAGES_DEPLOY_HOOK`: main 브랜치 전용 Pages deploy hook URL
+
+비밀값은 job 전역에 주입하지 않습니다. API token과 account ID는 D1 migration
+단계에만, deploy hook은 Pages 요청 단계에만 step-level environment로 전달합니다.
+소스 검사 job은 비밀값 없이 실행하며 checkout credential도 보존하지 않습니다.
+Wrangler는 실행 중 동적으로 내려받지 않고 `package-lock.json`의 integrity에 고정된
+정확한 `4.33.1`을 `npm ci --ignore-scripts`로 설치한 뒤 로컬 실행 파일만 사용합니다.
+
+`recover-platform`은 소스 테스트와 migration validator를 통과한 뒤 D1 migration을
+순서대로 적용하고, 보호된 deploy hook으로 main 브랜치 빌드를 요청합니다. 그 다음
+아래와 동일한 probe로 현재 Git commit이 `BUILD_BOUND`이고 D1 schema가 `READY`인지
+확인합니다.
+
+```powershell
+node scripts\probe_monitoring_production.mjs `
+  --expected-commit <MAIN_40_HEX_COMMIT> `
+  --mode configured
+```
+
+이 결과의 `PASS`는 **플랫폼 구성 완료**만 의미합니다. 서명된 운영 데이터가 없거나
+오래되었다면 warning을 유지하며 Phase 1과 제품 release는 계속 `NO_GO`입니다.
+publisher가 schema 1.2 snapshot을 게시하고 Cloudflare API 증거가 원장에 결속된 뒤
+다음 검증까지 통과해야만 실시간 모니터링을 `LIVE`로 판정합니다.
+
+```powershell
+node scripts\probe_monitoring_production.mjs `
+  --expected-commit <MAIN_40_HEX_COMMIT> `
+  --mode live
+```
+
+`live` 모드는 payload·저장본 서명, freshness, 현재 source commit, build deployment,
+Cloudflare API로 검증된 `release_deployment`, trusted history를 모두 요구합니다.
+health·snapshot·release evidence가 가리키는 고유 deployment URL도 바이트 단위로
+일치해야 하며, 같은 commit으로 빌드된 다른 deployment는 실패합니다.
+하나라도 없으면 종료 코드 1과 `FAIL`을 반환합니다. 네트워크·JSON·응답 크기 문제가
+있으면 종료 코드 2로 실패합니다. 따라서 정적 대시보드가 보인다는 사실만으로
+실시간 연동 완료를 선언할 수 없습니다.
+
 GPU `PASS`는 `nvidia-smi` telemetry만으로 만들지 않습니다. telemetry,
 compute process, Docker DeviceRequests, Slurm/예약 증거 네 소스가 모두
 `MEASURED`여야 합니다. 어느 하나가 disabled, unavailable, 생략이면 공개
