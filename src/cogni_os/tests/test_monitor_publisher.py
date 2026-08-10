@@ -36,6 +36,7 @@ from scripts.publish_monitor_snapshot import (
     RELEASE_ARTIFACT_FILES,
     PublisherAlreadyRunning,
     PublisherInstanceLock,
+    _assert_non_reparse_path,
     _capture_tasks_and_phase_audit,
     _configure_production_runtime,
     _run_capped_command,
@@ -1235,6 +1236,17 @@ class MonitorPublisherTests(unittest.TestCase):
         )
         with patch.dict(os.environ, {}, clear=True):
             _configure_production_runtime(args)
+        if os.name != "nt":
+            with tempfile.TemporaryDirectory() as temporary:
+                source = Path(temporary) / "collector.py"
+                source.write_text("pass\n", encoding="utf-8")
+                self.assertEqual(_assert_non_reparse_path(source), source.absolute())
+                with self.assertRaisesRegex(RuntimeError, "root-owned and immutable"):
+                    _assert_non_reparse_path(source, require_root_immutable=True)
+                link = Path(temporary) / "collector-link.py"
+                link.symlink_to(source)
+                with self.assertRaisesRegex(RuntimeError, "link or reparse point"):
+                    _assert_non_reparse_path(link)
 
     def test_monitoring_workflow_runs_for_every_repository_change(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "monitoring-ci.yml").read_text(
