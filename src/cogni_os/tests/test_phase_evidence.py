@@ -66,7 +66,7 @@ class PhaseEvidenceTests(unittest.TestCase):
             )
             validations.append(
                 {
-                    "command_argv": [sys.executable, "-m", "unittest", selector],
+                    "command_argv": [runtime_path, "-m", "unittest", selector],
                     "executed_argv": executed_argv,
                     "command_policy": {
                         "kind": "python",

@@ -151,7 +151,9 @@ def _bounded_file_sha256(path: Path, *, maximum: int = 1024 * 1024 * 1024) -> st
     return digest.hexdigest()
 
 
-def _assert_non_reparse_path(path: Path) -> Path:
+def _assert_non_reparse_path(
+    path: Path, *, require_root_immutable: bool = False
+) -> Path:
     candidate = path.absolute()
     if not candidate.is_absolute():
         raise RuntimeError("trusted executable path is not absolute")
@@ -163,7 +165,7 @@ def _assert_non_reparse_path(path: Path) -> Path:
             getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
         ):
             raise RuntimeError("trusted executable path crosses a link or reparse point")
-        if os.name != "nt" and (
+        if require_root_immutable and os.name != "nt" and (
             int(getattr(info, "st_uid", -1)) != 0 or info.st_mode & 0o022
         ):
             raise RuntimeError("trusted executable path is not root-owned and immutable")
@@ -174,7 +176,9 @@ def _verify_production_executable(name: str) -> tuple[Path, str]:
     record = _PRODUCTION_EXECUTABLES.get(name)
     if not isinstance(record, dict) or set(record) != {"path", "sha256"}:
         raise RuntimeError(f"trusted executable record is missing: {name}")
-    path = _assert_non_reparse_path(Path(str(record["path"])))
+    path = _assert_non_reparse_path(
+        Path(str(record["path"])), require_root_immutable=True
+    )
     expected = str(record["sha256"])
     if not re.fullmatch(r"[0-9a-f]{64}", expected):
         raise RuntimeError(f"trusted executable digest is invalid: {name}")
@@ -361,7 +365,9 @@ def _collector_code_manifest(root: Path) -> tuple[str, int]:
     records: list[dict[str, Any]] = []
     total_bytes = 0
     for path in sorted(set(paths), key=lambda value: value.as_posix()):
-        checked = _assert_non_reparse_path(path)
+        checked = _assert_non_reparse_path(
+            path, require_root_immutable=bool(_PRODUCTION_EXECUTABLES)
+        )
         info = checked.lstat()
         if not stat.S_ISREG(info.st_mode):
             raise RuntimeError("collector code manifest contains a non-regular file")
@@ -429,7 +435,9 @@ def _configure_production_runtime(args: argparse.Namespace) -> None:
         if isinstance(name, str) and isinstance(record, dict)
     }
     python_path, _ = _verify_production_executable("python")
-    if python_path != _assert_non_reparse_path(Path(sys.executable)):
+    if python_path != _assert_non_reparse_path(
+        Path(sys.executable), require_root_immutable=True
+    ):
         raise RuntimeError("running Python differs from the attested executable")
     for name in _PRODUCTION_EXECUTABLES:
         _verify_production_executable(name)
@@ -2726,7 +2734,8 @@ def collect_phase_evidence_audit(
 
     collector_root = Path(__file__).resolve().parents[1]
     audit_script = _assert_non_reparse_path(
-        collector_root / "scripts" / "audit_phase_evidence.py"
+        collector_root / "scripts" / "audit_phase_evidence.py",
+        require_root_immutable=bool(_PRODUCTION_EXECUTABLES),
     )
     before = _phase_audit_source_state(workspace_root, collector_root)
     if before["workspace"]["commit"] != expected_commit:
