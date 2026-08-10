@@ -233,7 +233,7 @@ export async function onRequest(context) {
         operational_ingest_ready: operationalIngestReady,
         release_attribution_ready: releaseAttributionReady,
         release_evidence_state: "API_EVIDENCE_REQUIRED",
-        minimum_release_snapshot_schema: "1.2",
+        minimum_release_snapshot_schema: "1.3",
       },
       deployment,
       timestamp: new Date().toISOString(),

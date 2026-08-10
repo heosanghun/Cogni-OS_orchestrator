@@ -49,21 +49,50 @@ class PhaseEvidenceTests(unittest.TestCase):
         artifacts = []
         validations = []
         bindings = []
+        runtime_sha256 = _digest(f"{phase_id}:runtime")
+        runtime_path = str(Path(sys.executable).resolve())
         for requirement_id in PHASE_EVIDENCE_REQUIREMENTS[phase_id]:
             artifact_sha256 = _digest(f"{phase_id}:{requirement_id}:artifact")
             output_sha256 = _digest(f"{phase_id}:{requirement_id}:output")
             selector = PHASE_REQUIREMENT_TEST_SELECTORS[phase_id][requirement_id]
+            executed_argv = [runtime_path, "-m", "unittest", selector]
+            test_module_path = str(
+                self.workspace_root
+                / Path("src").joinpath(*selector.split(".")[:-2]).with_suffix(".py")
+            )
+            test_module_sha256 = _digest(f"{phase_id}:test-module")
             artifacts.append(
                 {"path": f"{requirement_id}.json", "sha256": artifact_sha256}
             )
             validations.append(
                 {
                     "command_argv": [sys.executable, "-m", "unittest", selector],
+                    "executed_argv": executed_argv,
+                    "command_policy": {
+                        "kind": "python",
+                        "executable_path": runtime_path,
+                        "executable_sha256": runtime_sha256,
+                        "executable_binding": {
+                            "policy_id": "fixed-admin-runtime-readonly-v1",
+                            "kind": "python",
+                            "path": runtime_path,
+                            "sha256": runtime_sha256,
+                            "provenance": "fixed-admin-path-chain",
+                        },
+                        "executed_argv": executed_argv,
+                        "code_paths": [
+                            {
+                                "path": test_module_path,
+                                "sha256": test_module_sha256,
+                            }
+                        ],
+                    },
                     "exit_code": 0,
                     "timed_out": False,
                     "output_truncated": False,
                     "output_size_bytes": 64,
                     "output_sha256": output_sha256,
+                    "executable_sha256_after": runtime_sha256,
                 }
             )
             bindings.append(
@@ -78,10 +107,24 @@ class PhaseEvidenceTests(unittest.TestCase):
             "state": "verified",
             "verification": {
                 "trusted_validation": {
+                    "runner": "cogni-os-trusted-runner-v3",
                     "passed": True,
                     "source_clean": True,
                     "source_postcheck_passed": True,
                     "source_commit": self.commit,
+                    "receipt_sha256": _digest(f"{phase_id}:receipt"),
+                    "receipt_preimage_sha256": _digest(f"{phase_id}:preimage"),
+                    "verifier_manifest_sha256": _digest(f"{phase_id}:manifest"),
+                    "validation_contract_sha256": _digest(f"{phase_id}:contract"),
+                    "environment_sha256": _digest(f"{phase_id}:environment"),
+                    "sandbox_environment_sha256": _digest(
+                        f"{phase_id}:sandbox-environment"
+                    ),
+                    "isolation_attested": True,
+                    "snapshot_precheck_passed": True,
+                    "snapshot_postcheck_passed": True,
+                    "operational_change_count": 0,
+                    "network_allowed": False,
                     "validations": validations,
                 }
             },
@@ -146,6 +189,35 @@ class PhaseEvidenceTests(unittest.TestCase):
             any("COMMAND_NOT_PINNED" in reason for reason in result["reasons"])
         )
 
+    def test_unpinned_runtime_and_missing_code_provenance_fail_closed(self) -> None:
+        task = self.phase_task("P08-CORE")
+        validation = task["verification"]["trusted_validation"]["validations"][0]
+        validation["executed_argv"][0] = "not-a-python-runtime"
+        validation["command_policy"]["code_paths"] = []
+        result = self.audit(task)
+        self.assertEqual(result["coverage_status"], "NO_GO")
+        self.assertTrue(
+            any("PROVENANCE_INVALID" in reason for reason in result["reasons"])
+        )
+
+    def test_declared_runtime_must_equal_the_attested_executable(self) -> None:
+        task = self.phase_task("P08-CORE")
+        validation = task["verification"]["trusted_validation"]["validations"][0]
+        validation["command_argv"][0] = "not-a-python-runtime"
+        result = self.audit(task)
+        self.assertEqual(result["coverage_status"], "NO_GO")
+        self.assertTrue(
+            any("PROVENANCE_INVALID" in reason for reason in result["reasons"])
+        )
+
+    def test_missing_runner_environment_binding_fails_closed(self) -> None:
+        task = self.phase_task("P03-EVIDENCE")
+        trusted = task["verification"]["trusted_validation"]
+        trusted["environment_sha256"] = None
+        result = self.audit(task)
+        self.assertEqual(result["coverage_status"], "NO_GO")
+        self.assertIn("TRUSTED_RUNNER_PROVENANCE_INVALID", result["reasons"])
+
     def test_wrong_commit_and_missing_requirement_fail(self) -> None:
         task = self.phase_task("P08-CORE")
         envelope = task["result"]["manifest"]["phase_evidence"]
@@ -175,6 +247,19 @@ class PhaseEvidenceTests(unittest.TestCase):
         self.assertEqual(result["coverage_status"], "NO_GO")
         self.assertIn("TRUSTED_VALIDATION_OUTPUT_REUSED", result["reasons"])
 
+    def test_artifact_cannot_reuse_its_trusted_output_digest(self) -> None:
+        task = self.phase_task("P01-TRUTH")
+        validation = task["verification"]["trusted_validation"]["validations"][0]
+        artifact = task["result"]["manifest"]["artifacts"][0]
+        requirement = task["result"]["manifest"]["phase_evidence"]["requirements"][0]
+        artifact["sha256"] = validation["output_sha256"]
+        requirement["artifact_sha256"] = validation["output_sha256"]
+        result = self.audit(task)
+        self.assertEqual(result["coverage_status"], "NO_GO")
+        self.assertTrue(
+            any("ARTIFACT_OUTPUT_DIGEST_COLLISION" in value for value in result["reasons"])
+        )
+
     def test_cross_phase_reuse_invalidates_every_owner(self) -> None:
         first = self.phase_task("P01-TRUTH")
         second = self.phase_task("P02-ORCHESTRATION")
@@ -202,6 +287,31 @@ class PhaseEvidenceTests(unittest.TestCase):
                 )
             )
         self.assertEqual(report["validated_phases"], 0)
+
+    def test_cross_phase_artifact_output_collision_invalidates_both(self) -> None:
+        first = self.phase_task("P01-TRUTH")
+        second = self.phase_task("P02-ORCHESTRATION")
+        reused = first["result"]["manifest"]["artifacts"][0]["sha256"]
+        second["verification"]["trusted_validation"]["validations"][0][
+            "output_sha256"
+        ] = reused
+        second["result"]["manifest"]["phase_evidence"]["requirements"][0][
+            "trusted_output_sha256"
+        ] = reused
+        report = audit_phase_tasks(
+            [first, second],
+            current_source_commit=self.commit,
+            workspace_root=self.workspace_root,
+        )
+        by_id = {phase["phase_id"]: phase for phase in report["phases"]}
+        for phase_id in ("P01-TRUTH", "P02-ORCHESTRATION"):
+            self.assertEqual(by_id[phase_id]["coverage_status"], "NO_GO")
+            self.assertTrue(
+                any(
+                    reason.startswith("CROSS_DOMAIN_DIGEST_REUSE:")
+                    for reason in by_id[phase_id]["reasons"]
+                )
+            )
 
     def test_malformed_normalized_manifest_is_no_go_not_crash(self) -> None:
         task = self.phase_task("P07-WORKSPACE")

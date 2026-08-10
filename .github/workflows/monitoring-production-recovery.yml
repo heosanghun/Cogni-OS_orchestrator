@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Recover the Cloudflare platform or verify trusted live data
+        description: Recover CONFIGURED platform state or verify externally published signed LIVE data
         required: true
-        default: recover-platform
+        default: verify-live
         type: choice
         options:
-          - recover-platform
           - verify-live
+          - recover-platform
 
 permissions:
   contents: read
@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   source-validation:
+    name: Validate protected main source without production secrets
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,18 +29,73 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
-      - name: Fail-closed main-branch preflight
+      - name: Fail-closed protected main-branch preflight
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_REF_PROTECTED" = "true"
           [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+      - name: Capture the non-release Phase 1-11 semantic audit
+        shell: bash
+        env:
+          PHASE_AUDIT_DIR: ${{ runner.temp }}/phase-evidence-audit
+        run: |
+          set -euo pipefail
+          umask 077
+          rm -rf -- "$PHASE_AUDIT_DIR"
+          mkdir -p -- "$PHASE_AUDIT_DIR"
+          set +e
+          python -I scripts/audit_phase_evidence.py --workspace . \
+            > "$PHASE_AUDIT_DIR/phase-evidence-audit.json"
+          audit_exit=$?
+          set -e
+          if [ "$audit_exit" -ne 0 ] && [ "$audit_exit" -ne 1 ]; then
+            echo "Phase evidence auditor failed structurally." >&2
+            exit 1
+          fi
+          export PHASE_AUDIT_PATH="$PHASE_AUDIT_DIR/phase-evidence-audit.json"
+          export PHASE_AUDIT_EXIT="$audit_exit"
+          python -I - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["PHASE_AUDIT_PATH"])
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          if not isinstance(payload, dict):
+              raise SystemExit("phase evidence audit must be one JSON object")
+          if payload.get("schema") != "cogni.phase-evidence-audit.v2":
+              raise SystemExit("phase evidence audit schema is invalid")
+          if payload.get("release_authority") is not False:
+              raise SystemExit("phase evidence audit cannot grant release authority")
+          status = payload.get("coverage_status")
+          expected_exit = 0 if status == "SEMANTIC_COVERAGE_PASS" else 1
+          if status not in {"SEMANTIC_COVERAGE_PASS", "NO_GO"}:
+              raise SystemExit("phase evidence audit state is invalid")
+          if int(os.environ["PHASE_AUDIT_EXIT"]) != expected_exit:
+              raise SystemExit("phase evidence audit exit code contradicts its state")
+          PY
+          phase_audit_sha256="$(sha256sum "$PHASE_AUDIT_PATH" | cut -d ' ' -f 1)"
+          [[ "$phase_audit_sha256" =~ ^[0-9a-f]{64}$ ]]
+          chmod 0400 -- "$PHASE_AUDIT_PATH"
+          echo "::notice title=Non-release Phase evidence audit::sha256=$phase_audit_sha256 status_exit=$audit_exit"
+      - name: Seal the non-release Phase evidence audit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: phase-evidence-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/phase-evidence-audit/phase-evidence-audit.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 9
+          overwrite: false
+          include-hidden-files: false
       - name: Install the integrity-locked toolchain without lifecycle scripts
         run: npm ci --ignore-scripts
       - name: Source and migration trust gates
@@ -50,30 +106,304 @@ jobs:
           python -I scripts/validate_monitoring_migrations.py
 
   recover-platform:
+    name: Recover platform to CONFIGURED only (never publish signed LIVE)
     if: ${{ inputs.mode == 'recover-platform' }}
     needs: source-validation
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    environment:
+      name: monitoring-production
     steps:
+      - name: Require externally provisioned production protection policy
+        shell: bash
+        env:
+          PROTECTION_POLICY: ${{ vars.COGNI_MONITORING_PRODUCTION_POLICY }}
+        run: |
+          set -euo pipefail
+          test "$PROTECTION_POLICY" = "required-reviewer+prevent-self-review+main-only+no-admin-bypass-v1"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
       - name: Install the integrity-locked toolchain without lifecycle scripts
         run: npm ci --ignore-scripts
-      - name: Apply ordered D1 migrations to production
+
+      - name: Capture sanitized pre-migration state with D1 Read only
+        id: pre
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_READ_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_NAME: cogni-os-monitoring
+          EVIDENCE_DIR: ${{ runner.temp }}/monitoring-recovery-evidence
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]
+          rm -rf -- "$EVIDENCE_DIR"
+          mkdir -p -- "$EVIDENCE_DIR"
+          raw_dir="$(mktemp -d "$RUNNER_TEMP/d1-pre-raw.XXXXXX")"
+          trap 'rm -rf -- "$raw_dir"' EXIT
+
+          ./node_modules/.bin/wrangler d1 time-travel info \
+            "$D1_DATABASE_NAME" --json \
+            > "$raw_dir/bookmark.json" 2> "$raw_dir/bookmark.stderr"
+          ./node_modules/.bin/wrangler d1 migrations list \
+            "$D1_DATABASE_NAME" --remote \
+            > "$raw_dir/migrations.stdout" 2> "$raw_dir/migrations.stderr"
+          export RAW_DIR="$raw_dir"
+          export WRANGLER_VERSION="$(./node_modules/.bin/wrangler --version)"
+
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { readFileSync, writeFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const digest = (value) => createHash("sha256").update(value).digest("hex");
+          const bookmarkDocument = JSON.parse(
+            readFileSync(join(process.env.RAW_DIR, "bookmark.json"), "utf8"),
+          );
+          const bookmarks = [];
+          const visit = (value) => {
+            if (Array.isArray(value)) for (const item of value) visit(item);
+            else if (value && typeof value === "object") {
+              for (const [key, item] of Object.entries(value)) {
+                if (key === "bookmark" && typeof item === "string") bookmarks.push(item);
+                else visit(item);
+              }
+            }
+          };
+          visit(bookmarkDocument);
+          const unique = [...new Set(bookmarks)];
+          if (unique.length !== 1 || !/^[A-Za-z0-9_-]{8,512}$/.test(unique[0])) {
+            throw new Error("D1 Time Travel did not return one bounded bookmark");
+          }
+          if (process.env.WRANGLER_VERSION !== "4.33.1") {
+            throw new Error("unexpected Wrangler version");
+          }
+          const migrationOutput = readFileSync(
+            join(process.env.RAW_DIR, "migrations.stdout"),
+          );
+          if (migrationOutput.length > 1024 * 1024) {
+            throw new Error("D1 migration inventory exceeded the evidence bound");
+          }
+          const text = migrationOutput.toString("utf8");
+          const pending = [...new Set(
+            [...text.matchAll(/\b\d{4,}_[A-Za-z0-9_.-]+\.sql\b/g)].map((match) => match[0]),
+          )].sort();
+          const evidence = {
+            schema: "cogni.d1-migration-state.v1",
+            stage: "pre-migration",
+            source_commit: process.env.GITHUB_SHA,
+            run_id: process.env.GITHUB_RUN_ID,
+            run_attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            database_alias: process.env.D1_DATABASE_NAME,
+            account_id_sha256: digest(process.env.CLOUDFLARE_ACCOUNT_ID),
+            captured_at: new Date().toISOString(),
+            wrangler_version: process.env.WRANGLER_VERSION,
+            time_travel_bookmark_sha256: digest(unique[0]),
+            remote_migration_inventory_sha256: digest(migrationOutput),
+            pending_migration_names: pending,
+            database_rows_captured: false,
+            raw_bookmark_retained: false,
+            secret_material_retained: false,
+          };
+          writeFileSync(
+            join(process.env.EVIDENCE_DIR, "d1-pre-migration.json"),
+            `${JSON.stringify(evidence, null, 2)}\n`,
+            { encoding: "utf8", mode: 0o600, flag: "wx" },
+          );
+          NODE
+
+          pre_sha256="$(sha256sum "$EVIDENCE_DIR/d1-pre-migration.json" | cut -d ' ' -f 1)"
+          [[ "$pre_sha256" =~ ^[0-9a-f]{64}$ ]]
+          pre_bookmark_sha256="$(node -e 'const value=require(process.argv[1]); process.stdout.write(value.time_travel_bookmark_sha256)' "$EVIDENCE_DIR/d1-pre-migration.json")"
+          [[ "$pre_bookmark_sha256" =~ ^[0-9a-f]{64}$ ]]
+          chmod 0400 -- "$EVIDENCE_DIR/d1-pre-migration.json"
+          echo "::notice title=Sanitized D1 pre-migration receipt::file_sha256=$pre_sha256 bookmark_sha256=$pre_bookmark_sha256"
+          echo "file_sha256=$pre_sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Seal immutable pre-migration receipt before mutation
+        id: upload-pre
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: monitoring-d1-pre-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/monitoring-recovery-evidence/d1-pre-migration.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 9
+          overwrite: false
+          include-hidden-files: false
+
+      - name: Verify sealed pre-state, apply D1 migrations, and capture post-state
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_NAME: cogni-os-monitoring
+          EVIDENCE_DIR: ${{ runner.temp }}/monitoring-recovery-evidence
+          EXPECTED_PRE_FILE_SHA256: ${{ steps.pre.outputs.file_sha256 }}
+          PRE_ARTIFACT_SHA256: ${{ steps.upload-pre.outputs.artifact-digest }}
         run: |
           set -euo pipefail
+          umask 077
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          ./node_modules/.bin/wrangler d1 migrations list cogni-os-monitoring --remote
-          ./node_modules/.bin/wrangler d1 migrations apply cogni-os-monitoring --remote
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]
+          [[ "$EXPECTED_PRE_FILE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$PRE_ARTIFACT_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          actual_pre_sha256="$(sha256sum "$EVIDENCE_DIR/d1-pre-migration.json" | cut -d ' ' -f 1)"
+          test "$actual_pre_sha256" = "$EXPECTED_PRE_FILE_SHA256"
+          expected_account_sha256="$(node -e 'const value=require(process.argv[1]); process.stdout.write(value.account_id_sha256)' "$EVIDENCE_DIR/d1-pre-migration.json")"
+          actual_account_sha256="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | sha256sum | cut -d ' ' -f 1)"
+          [[ "$expected_account_sha256" =~ ^[0-9a-f]{64}$ ]]
+          test "$actual_account_sha256" = "$expected_account_sha256"
+          raw_dir="$(mktemp -d "$RUNNER_TEMP/d1-apply-post-raw.XXXXXX")"
+          trap 'rm -rf -- "$raw_dir"' EXIT
+
+          rm -f -- "$raw_dir/apply.stdout" "$raw_dir/apply.stderr"
+          if ! ./node_modules/.bin/wrangler d1 migrations apply \
+            "$D1_DATABASE_NAME" --remote \
+            > "$raw_dir/apply.stdout" 2> "$raw_dir/apply.stderr"; then
+            echo "D1 migration failed; raw remote output was withheld and destroyed." >&2
+            exit 1
+          fi
+          apply_sha256="$({ cat "$raw_dir/apply.stdout"; printf '\0'; cat "$raw_dir/apply.stderr"; } | sha256sum | cut -d ' ' -f 1)"
+          [[ "$apply_sha256" =~ ^[0-9a-f]{64}$ ]]
+          actual_pre_sha256="$(sha256sum "$EVIDENCE_DIR/d1-pre-migration.json" | cut -d ' ' -f 1)"
+          test "$actual_pre_sha256" = "$EXPECTED_PRE_FILE_SHA256"
+
+          rm -f -- "$raw_dir/bookmark.json" "$raw_dir/bookmark.stderr" \
+            "$raw_dir/migrations.stdout" "$raw_dir/migrations.stderr"
+          ./node_modules/.bin/wrangler d1 time-travel info \
+            "$D1_DATABASE_NAME" --json \
+            > "$raw_dir/bookmark.json" 2> "$raw_dir/bookmark.stderr"
+          ./node_modules/.bin/wrangler d1 migrations list \
+            "$D1_DATABASE_NAME" --remote \
+            > "$raw_dir/migrations.stdout" 2> "$raw_dir/migrations.stderr"
+          export RAW_DIR="$raw_dir"
+          export EXPECTED_PRE_FILE_SHA256
+          export PRE_ARTIFACT_SHA256
+          export MIGRATION_APPLY_OUTPUT_SHA256="$apply_sha256"
+
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { readFileSync, writeFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const digest = (value) => createHash("sha256").update(value).digest("hex");
+          const bookmarkDocument = JSON.parse(
+            readFileSync(join(process.env.RAW_DIR, "bookmark.json"), "utf8"),
+          );
+          const bookmarks = [];
+          const visit = (value) => {
+            if (Array.isArray(value)) for (const item of value) visit(item);
+            else if (value && typeof value === "object") {
+              for (const [key, item] of Object.entries(value)) {
+                if (key === "bookmark" && typeof item === "string") bookmarks.push(item);
+                else visit(item);
+              }
+            }
+          };
+          visit(bookmarkDocument);
+          const unique = [...new Set(bookmarks)];
+          if (unique.length !== 1 || !/^[A-Za-z0-9_-]{8,512}$/.test(unique[0])) {
+            throw new Error("D1 Time Travel did not return one bounded bookmark");
+          }
+          const migrationOutput = readFileSync(
+            join(process.env.RAW_DIR, "migrations.stdout"),
+          );
+          if (migrationOutput.length > 1024 * 1024) {
+            throw new Error("D1 migration inventory exceeded the evidence bound");
+          }
+          const pre = JSON.parse(
+            readFileSync(join(process.env.EVIDENCE_DIR, "d1-pre-migration.json"), "utf8"),
+          );
+          const text = migrationOutput.toString("utf8");
+          const pending = [...new Set(
+            [...text.matchAll(/\b\d{4,}_[A-Za-z0-9_.-]+\.sql\b/g)].map((match) => match[0]),
+          )].sort();
+          const capturedAt = new Date().toISOString();
+          if (pending.length !== 0) {
+            throw new Error("unapplied remote D1 migrations remain after apply");
+          }
+          const post = {
+            schema: "cogni.d1-migration-state.v1",
+            stage: "post-migration",
+            source_commit: process.env.GITHUB_SHA,
+            run_id: process.env.GITHUB_RUN_ID,
+            run_attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            database_alias: process.env.D1_DATABASE_NAME,
+            account_id_sha256: pre.account_id_sha256,
+            captured_at: capturedAt,
+            wrangler_version: "4.33.1",
+            time_travel_bookmark_sha256: digest(unique[0]),
+            remote_migration_inventory_sha256: digest(migrationOutput),
+            pending_migration_names: pending,
+            pre_evidence_file_sha256: process.env.EXPECTED_PRE_FILE_SHA256,
+            pre_artifact_sha256: process.env.PRE_ARTIFACT_SHA256,
+            migration_apply_output_sha256: process.env.MIGRATION_APPLY_OUTPUT_SHA256,
+            database_rows_captured: false,
+            raw_bookmark_retained: false,
+            secret_material_retained: false,
+          };
+          const rehearsal = {
+            schema: "cogni.monitoring-recovery-rehearsal.v1",
+            status: "PROCEDURE_ONLY_NO_MUTATION",
+            source_commit: process.env.GITHUB_SHA,
+            run_id: process.env.GITHUB_RUN_ID,
+            run_attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            created_at: capturedAt,
+            d1_time_travel: {
+              target_pre_migration_captured_at: pre.captured_at,
+              target_pre_migration_bookmark_sha256: pre.time_travel_bookmark_sha256,
+              observed_post_migration_bookmark_sha256: post.time_travel_bookmark_sha256,
+              restore_command_executed: false,
+              restore_is_destructive: true,
+              raw_restore_bookmark_retained: false,
+              separate_authorization_and_undo_bookmark_required: true,
+            },
+            pages_rollback: {
+              rollback_command_executed: false,
+              target_api_verified: false,
+              required_target: "prior-distinct-successful-production-deployment",
+              preview_deployment_forbidden: true,
+            },
+            release_claim: "CONFIGURED_ONLY_EXTERNAL_SIGNED_LIVE_PUBLISHER_REQUIRED",
+          };
+          writeFileSync(
+            join(process.env.EVIDENCE_DIR, "d1-post-migration.json"),
+            `${JSON.stringify(post, null, 2)}\n`,
+            { encoding: "utf8", mode: 0o600, flag: "wx" },
+          );
+          writeFileSync(
+            join(process.env.EVIDENCE_DIR, "recovery-rehearsal-receipt.json"),
+            `${JSON.stringify(rehearsal, null, 2)}\n`,
+            { encoding: "utf8", mode: 0o600, flag: "wx" },
+          );
+          NODE
+          post_sha256="$(sha256sum "$EVIDENCE_DIR/d1-post-migration.json" | cut -d ' ' -f 1)"
+          [[ "$post_sha256" =~ ^[0-9a-f]{64}$ ]]
+          echo "::notice title=Sanitized D1 post-migration receipt::file_sha256=$post_sha256 pre_artifact_sha256=$PRE_ARTIFACT_SHA256"
+
+      - name: Seal immutable post-migration and rehearsal receipts
+        id: upload-post
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: monitoring-d1-post-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/monitoring-recovery-evidence/d1-post-migration.json
+            ${{ runner.temp }}/monitoring-recovery-evidence/recovery-rehearsal-receipt.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 9
+          overwrite: false
+          include-hidden-files: false
+
       - name: Trigger the protected main-branch Pages build
         shell: bash
         env:
@@ -86,28 +416,63 @@ jobs:
             *) echo "The protected Pages deploy hook has an invalid origin." >&2; exit 1 ;;
           esac
           curl --fail --silent --show-error \
+            --proto '=https' \
+            --tlsv1.2 \
+            --connect-timeout 10 \
+            --max-time 30 \
             --request POST \
             --output /dev/null \
             "$CLOUDFLARE_PAGES_DEPLOY_HOOK"
-      - name: Require exact commit-bound configured production
+
+      - name: Require exact commit-bound CONFIGURED production
         shell: bash
+        env:
+          EVIDENCE_DIR: ${{ runner.temp }}/monitoring-recovery-evidence
         run: |
           set -euo pipefail
           for attempt in $(seq 1 60); do
+            rm -f -- "$EVIDENCE_DIR/configured-probe.json" production-probe.err
             if node scripts/probe_monitoring_production.mjs \
               --expected-commit "$GITHUB_SHA" \
               --mode configured \
-              > production-probe.json 2> production-probe.err; then
-              cat production-probe.json
+              --output "$EVIDENCE_DIR/configured-probe.json" \
+              > /dev/null 2> production-probe.err; then
               exit 0
             fi
             sleep 10
           done
-          cat production-probe.json || true
+          cat "$EVIDENCE_DIR/configured-probe.json" || true
           cat production-probe.err >&2 || true
           exit 1
 
+      - name: Seal CONFIGURED-only production probe
+        id: upload-configured
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: monitoring-configured-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/monitoring-recovery-evidence/configured-probe.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 9
+          overwrite: false
+          include-hidden-files: false
+
+      - name: Record the explicit CONFIGURED-only trust boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "### Monitoring recovery result"
+            echo "- Platform state verified: CONFIGURED"
+            echo "- Signed LIVE published by this workflow: false"
+            echo "- External trusted publisher and a separate verify-live run required: true"
+            echo "- Pre-migration artifact SHA-256: ${{ steps.upload-pre.outputs.artifact-digest }}"
+            echo "- Post-migration artifact SHA-256: ${{ steps.upload-post.outputs.artifact-digest }}"
+            echo "- CONFIGURED probe artifact SHA-256: ${{ steps.upload-configured.outputs.artifact-digest }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   verify-live:
+    name: Verify externally published signed LIVE data (read-only)
     if: ${{ inputs.mode == 'verify-live' }}
     needs: source-validation
     runs-on: ubuntu-latest
@@ -116,11 +481,46 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
-      - name: Require signed fresh data and API deployment evidence
-        run: >-
-          node scripts/probe_monitoring_production.mjs
-          --expected-commit "$GITHUB_SHA"
-          --mode live
+      - name: Require externally published signed fresh data and deployment evidence
+        id: live-probe
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          evidence_dir="$RUNNER_TEMP/monitoring-live-evidence"
+          rm -rf -- "$evidence_dir"
+          mkdir -p -- "$evidence_dir"
+          node scripts/probe_monitoring_production.mjs \
+            --expected-commit "$GITHUB_SHA" \
+            --mode live \
+            --output "$evidence_dir/live-probe.json" \
+            > /dev/null
+      - name: Seal signed LIVE verification receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: monitoring-live-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/monitoring-live-evidence/live-probe.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 9
+          overwrite: false
+          include-hidden-files: false
+      - name: Fail closed unless the read-only LIVE probe passed
+        if: ${{ always() }}
+        shell: bash
+        env:
+          LIVE_PROBE_OUTCOME: ${{ steps.live-probe.outcome }}
+        run: |
+          set -euo pipefail
+          test "$LIVE_PROBE_OUTCOME" = "success"
+          {
+            echo "### Signed LIVE verification result"
+            echo "- External signed LIVE snapshot verified: true"
+            echo "- Snapshot published by this workflow: false"
+            echo "- Verification mode: read-only public API probe"
+          } >> "$GITHUB_STEP_SUMMARY"

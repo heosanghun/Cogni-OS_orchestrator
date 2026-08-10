@@ -65,6 +65,23 @@ HTTP `202` 자체는 게시 성공 증거가 아닙니다. publisher는 응답�
 스키마가 늘거나 줄거나, JSON member가 중복되거나, 값 하나라도 다르면 journal에
 성공을 기록하지 않고 fail-closed로 실패합니다.
 
+### Phase 의미 증거와 응답 결합
+
+Schema 1.3 publisher는 `phase_evidence_audit`만 HMAC 서명 본문에 넣는다.
+`phase_evidence_binding`은 publisher가 만들 수 없으며, raw payload에 들어오면 ingest가
+거부한다. Cloudflare는 저장된 원문 바이트의 SHA-256과 HMAC을 먼저 검증한 뒤에만
+다음 값을 응답용 binding으로 파생한다.
+
+- canonical Phase audit SHA-256
+- D1 행의 sequence와 정확한 raw-body SHA-256
+- 서명 본문의 source commit, release deployment, release gate evidence
+- `signature_verified=true`
+
+따라서 본문이 자신의 해시를 포함해야 하는 순환 참조와 publisher 자기증명을 모두
+피한다. `NO_GO` 의미 감사도 전송 계층이 신뢰된 `LIVE`이면 진행 상황으로 표시할 수
+있지만, Release PASS는 감사 11/11, 독립 release gate, roadmap 11/11 및 현재 Pages
+배포 결합이 모두 일치할 때만 표시한다.
+
 ## 데이터 경계
 
 publisher는 다음 운영 메타데이터만 외부 관제 채널에 전송합니다.
@@ -236,12 +253,12 @@ DPAPI `SecureString` 파일 경로만 전달합니다.
   모두 네트워크 요청 전에 fail-closed 처리
 - 시작할 때 orchestrator 저장소가 clean HEAD인지 확인하고 canonical
   `/api/health`가 HTTP 200, `CONFIGURED`, storage `READY`, `BUILD_BOUND`, 동일
-  source commit, `minimum_release_snapshot_schema=1.2`,
+  source commit, `minimum_release_snapshot_schema=1.3`,
   `operational_ingest_ready=true`인지 확인
 - 위 production preflight가 하나라도 실패하면 Python publisher를 실행하지
   않고 로컬 wrapper journal에 bounded 오류만 기록
 
-여기서 `BUILD_BOUND`와 `operational_ingest_ready=true`는 schema 1.2 signed
+여기서 `BUILD_BOUND`와 `operational_ingest_ready=true`는 schema 1.3 signed
 snapshot을 수집할 수 있다는 뜻일 뿐 릴리스 완료가 아닙니다. health의
 `release_attribution_ready`는 API 증거를 HTTP 응답 자체가 자체 승인하지
 못하도록 항상 `false`, `release_evidence_state=API_EVIDENCE_REQUIRED`로
@@ -403,7 +420,7 @@ payload가 주장하는 commit은 배포 귀속으로 사용하지 않으며 모
 
 schema `1.0`과 `1.1`은 무중단 전환 중 읽기·표시 호환만 제공합니다. 신규
 provenance 게이트가 없는 legacy snapshot은 `PASS`를 주장할 수 없습니다.
-Phase 1의 배포 증거는 schema `1.2`, `LIVE`, payload signature·freshness·
+Phase 1의 배포 증거는 schema `1.3`, `LIVE`, payload signature·freshness·
 current source commit·deployment 결속, clean source, ledger-bound operational
 state, `BUILD_BOUND` commit을 모두 요구합니다.
 또한 Cloudflare project API가 가리키는 현재 production deployment ID와
@@ -414,15 +431,22 @@ state, `BUILD_BOUND` commit을 모두 요구합니다.
 
 운영 복구는 `.github/workflows/monitoring-production-recovery.yml`의
 `workflow_dispatch`로만 수행합니다. 일반 push와 pull request는 D1을 변경하거나
-Pages 배포 훅을 호출하지 않습니다. 저장소에는 비밀값을 넣지 않고 다음 GitHub
-Actions secret 이름만 사용합니다.
+Pages 배포 훅을 호출하지 않습니다. 저장소에는 비밀값을 넣지 않고 보호된
+`monitoring-production` environment에 다음 variable과 secret을 분리해 둡니다.
 
-- `CLOUDFLARE_API_TOKEN`: 해당 D1 migration을 적용할 수 있는 최소 권한 토큰
-- `CLOUDFLARE_ACCOUNT_ID`: D1이 속한 Cloudflare 계정 ID
-- `CLOUDFLARE_PAGES_DEPLOY_HOOK`: main 브랜치 전용 Pages deploy hook URL
+- variable `COGNI_MONITORING_PRODUCTION_POLICY`: required reviewer·self-review 방지·
+  main-only·관리자 bypass 금지 구성을 나타내는 고정 marker
+- variable `CLOUDFLARE_ACCOUNT_ID`: pre-migration 읽기 단계의 32자리 account ID
+- secret `CLOUDFLARE_D1_READ_TOKEN`: bookmark와 migration 목록만 읽는 D1 Read 토큰
+- secret `CLOUDFLARE_API_TOKEN`: migration에만 사용하는 D1 Edit 토큰
+- secret `CLOUDFLARE_ACCOUNT_ID`: write 단계에서 pre receipt의 account SHA-256과
+  교차 검증하는 동일 account ID
+- secret `CLOUDFLARE_PAGES_DEPLOY_HOOK`: main 브랜치 전용 Pages deploy hook URL
 
-비밀값은 job 전역에 주입하지 않습니다. API token과 account ID는 D1 migration
-단계에만, deploy hook은 Pages 요청 단계에만 step-level environment로 전달합니다.
+비밀값은 job 전역에 주입하지 않습니다. read token과 variable account ID는
+pre-capture 단계에만, edit token과 secret account ID는 D1 migration 단계에만,
+deploy hook은 Pages 요청 단계에만 step-level environment로 전달합니다. 두 account
+ID는 원문을 기록하지 않고 SHA-256 일치로 mutation 전에 대조합니다.
 소스 검사 job은 비밀값 없이 실행하며 checkout credential도 보존하지 않습니다.
 Wrangler는 실행 중 동적으로 내려받지 않고 `package-lock.json`의 integrity에 고정된
 정확한 `4.33.1`을 `npm ci --ignore-scripts`로 설치한 뒤 로컬 실행 파일만 사용합니다.
@@ -440,7 +464,7 @@ node scripts\probe_monitoring_production.mjs `
 
 이 결과의 `PASS`는 **플랫폼 구성 완료**만 의미합니다. 서명된 운영 데이터가 없거나
 오래되었다면 warning을 유지하며 Phase 1과 제품 release는 계속 `NO_GO`입니다.
-publisher가 schema 1.2 snapshot을 게시하고 Cloudflare API 증거가 원장에 결속된 뒤
+publisher가 schema 1.3 snapshot을 게시하고 Cloudflare API 증거가 원장에 결속된 뒤
 다음 검증까지 통과해야만 실시간 모니터링을 `LIVE`로 판정합니다.
 
 ```powershell
@@ -485,6 +509,6 @@ compute process, Docker DeviceRequests, Slurm/예약 증거 네 소스가 모두
   gate는 `NO_GO`였다.
 
 따라서 저장소의 새 ACK 검증이 로컬·독립 시험을 통과한 것과 현재 공개 publisher가
-실시간으로 동작한다는 주장은 분리한다. schema 1.2 publisher 재가동, exact ACK,
+실시간으로 동작한다는 주장은 분리한다. schema 1.3 publisher 재가동, exact ACK,
 fresh snapshot, deployed commit/D1 독립 대조 전에는 공개 대시보드를 실시간 완료로
 표시하지 않는다.

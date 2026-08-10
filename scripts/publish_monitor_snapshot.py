@@ -34,14 +34,19 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from cogni_os.independence import identity_snapshot
+from cogni_os.phase_evidence import PHASE_EVIDENCE_REQUIREMENTS
 from cogni_os.lock import FileLock
 from cogni_os.release_gate import release_gate_status
 from cogni_os.roadmap import phase_contracts, roadmap_snapshot
 from cogni_os.trust_projection import task_trust_projection
 from cogni_os.workspace import Workspace
 
-COLLECTOR_VERSION = "1.2.0"
-SNAPSHOT_SCHEMA_VERSION = "1.2"
+COLLECTOR_VERSION = "1.3.0"
+SNAPSHOT_SCHEMA_VERSION = "1.3"
+PHASE_AUDIT_TIMEOUT_SECONDS = 30
+PHASE_AUDIT_SCHEMA = "cogni.phase-evidence-audit.v2"
+PHASE_AUDIT_ERROR_SCHEMA = "cogni.phase-evidence-audit-error.v2"
+PHASE_AUDIT_EXPECTED_TOTAL = 11
 GPU_ALLOWED_IDS = (0, 1, 2, 3, 4, 5)
 GPU_DENIED_IDS = (6, 7)
 GPU_BOUNDARY_ATTESTATION_ENV = "COGNI_GPU_BOUNDARY_ATTESTATION_PATH"
@@ -318,10 +323,12 @@ def _run_production_binary(
 
 def _collector_code_manifest(root: Path) -> tuple[str, int]:
     paths = [
+        root / "scripts" / "audit_phase_evidence.py",
         root / "scripts" / "publisher_binary_trust.ps1",
         root / "scripts" / "publisher_production_preflight.ps1",
         root / "scripts" / "run_monitor_publisher.ps1",
         root / "scripts" / "publish_monitor_snapshot.py",
+        root / "src" / "cogni_os" / "phase_evidence.py",
     ]
     path_characters = sum(len(str(path)) for path in paths)
     directory_count = 0
@@ -2496,6 +2503,404 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _phase_audit_unavailable(code: str, detail: str) -> dict[str, Any]:
+    """Return a bounded, non-authoritative audit failure projection."""
+
+    safe_code = re.sub(r"[^A-Z0-9_]", "_", str(code).upper())[:64]
+    safe_detail = " ".join(str(detail).replace("\r", " ").replace("\n", " ").split())[
+        :256
+    ]
+    return {
+        "schema": PHASE_AUDIT_ERROR_SCHEMA,
+        "coverage_status": "AUDIT_UNAVAILABLE",
+        "error": {
+            "code": safe_code or "AUDIT_FAILED",
+            "message": safe_detail or "phase evidence audit is unavailable",
+        },
+        "release_authority": False,
+    }
+
+
+def _phase_audit_source_state(workspace_root: Path, collector_root: Path) -> dict[str, Any]:
+    """Capture commit and source/operational fingerprints around an audit."""
+
+    def state(root: Path) -> dict[str, Any]:
+        tree = git_tree_status(root)
+        return {
+            "commit": git_commit(root),
+            "clean": tree.get("clean"),
+            "fingerprint": tree.get("fingerprint"),
+            "operational_fingerprint": tree.get("operational_fingerprint"),
+            "unclassified_fingerprint": tree.get("unclassified_fingerprint"),
+        }
+
+    return {
+        "workspace": state(workspace_root),
+        "collector": state(collector_root),
+    }
+
+
+def _phase_audit_json(stdout: str) -> dict[str, Any]:
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        document: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in document:
+                raise ValueError("duplicate JSON member in phase audit")
+            document[key] = value
+        return document
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"non-standard JSON constant: {value}")
+
+    value = json.loads(
+        stdout,
+        object_pairs_hook=reject_duplicates,
+        parse_constant=reject_constant,
+    )
+    if not isinstance(value, dict):
+        raise ValueError("phase audit output is not an object")
+    return value
+
+
+def _validate_phase_audit(
+    value: dict[str, Any],
+    *,
+    expected_commit: str,
+    exit_code: int,
+) -> dict[str, Any]:
+    expected_keys = {
+        "schema",
+        "coverage_status",
+        "source_commit",
+        "total_phases",
+        "validated_phases",
+        "progress_percent",
+        "phases",
+        "release_authority",
+        "auditor_policy",
+    }
+    if set(value) != expected_keys or value.get("schema") != PHASE_AUDIT_SCHEMA:
+        raise ValueError("phase audit schema is not exact")
+    coverage_status = value.get("coverage_status")
+    if coverage_status not in {"SEMANTIC_COVERAGE_PASS", "NO_GO"}:
+        raise ValueError("phase audit coverage state is invalid")
+    if exit_code not in {0, 1} or (exit_code == 0) != (
+        coverage_status == "SEMANTIC_COVERAGE_PASS"
+    ):
+        raise ValueError("phase audit exit status does not bind its coverage state")
+    if value.get("source_commit") != expected_commit:
+        raise ValueError("phase audit source commit does not match the workspace")
+    total = value.get("total_phases")
+    validated = value.get("validated_phases")
+    progress = value.get("progress_percent")
+    phases = value.get("phases")
+    if (
+        total != PHASE_AUDIT_EXPECTED_TOTAL
+        or not isinstance(validated, int)
+        or isinstance(validated, bool)
+        or not 0 <= validated <= PHASE_AUDIT_EXPECTED_TOTAL
+        or not isinstance(progress, (int, float))
+        or isinstance(progress, bool)
+        or not math.isfinite(float(progress))
+        or float(progress) != round(100.0 * validated / PHASE_AUDIT_EXPECTED_TOTAL, 1)
+        or not isinstance(phases, list)
+        or len(phases) != PHASE_AUDIT_EXPECTED_TOTAL
+        or value.get("release_authority") is not False
+    ):
+        raise ValueError("phase audit summary is invalid")
+    expected_phase_ids = tuple(contract["id"] for contract in phase_contracts())
+    phase_ids: list[str] = []
+    observed_validated = 0
+    all_artifacts: list[str] = []
+    all_outputs: list[str] = []
+    for phase in phases:
+        if not isinstance(phase, dict) or set(phase) != {
+            "phase_id",
+            "coverage_status",
+            "reasons",
+            "source_commit",
+            "artifact_sha256",
+            "trusted_output_sha256",
+            "release_authority",
+        }:
+            raise ValueError("phase audit phase schema is invalid")
+        phase_id = phase.get("phase_id")
+        phase_status = phase.get("coverage_status")
+        if (
+            not isinstance(phase_id, str)
+            or phase_status not in {"SEMANTIC_COVERAGE_PASS", "NO_GO"}
+            or not isinstance(phase.get("reasons"), list)
+            or any(not isinstance(reason, str) for reason in phase["reasons"])
+            or not isinstance(phase.get("artifact_sha256"), list)
+            or not isinstance(phase.get("trusted_output_sha256"), list)
+            or phase.get("release_authority") is not False
+        ):
+            raise ValueError("phase audit phase evidence is invalid")
+        artifacts = phase["artifact_sha256"]
+        outputs = phase["trusted_output_sha256"]
+        if (
+            any(not re.fullmatch(r"[0-9a-f]{64}", str(digest)) for digest in artifacts)
+            or any(not re.fullmatch(r"[0-9a-f]{64}", str(digest)) for digest in outputs)
+            or len(artifacts) != len(set(artifacts))
+            or len(outputs) != len(set(outputs))
+            or set(artifacts) & set(outputs)
+        ):
+            raise ValueError("phase audit digest binding is invalid")
+        if phase_status == "SEMANTIC_COVERAGE_PASS":
+            observed_validated += 1
+            requirement_count = len(PHASE_EVIDENCE_REQUIREMENTS.get(phase_id, ()))
+            if (
+                phase.get("source_commit") != expected_commit
+                or phase["reasons"]
+                or len(artifacts) != requirement_count
+                or len(outputs) != requirement_count
+            ):
+                raise ValueError("passing phase is not commit-bound and reason-free")
+        phase_ids.append(phase_id)
+        all_artifacts.extend(artifacts)
+        all_outputs.extend(outputs)
+    if tuple(phase_ids) != expected_phase_ids or observed_validated != validated:
+        raise ValueError("phase audit phase inventory is invalid")
+    if (
+        len(all_artifacts) != len(set(all_artifacts))
+        or len(all_outputs) != len(set(all_outputs))
+        or set(all_artifacts) & set(all_outputs)
+    ):
+        raise ValueError("phase audit reuses evidence digests")
+    policy = value.get("auditor_policy")
+    if not isinstance(policy, dict) or set(policy) != {
+        "source_commit",
+        "source_tree",
+        "current_source_commit_bound",
+        "policy_sha256",
+        "files",
+    }:
+        raise ValueError("phase audit policy binding is invalid")
+    files = policy.get("files")
+    expected_policy_paths = (
+        "scripts/audit_phase_evidence.py",
+        "src/cogni_os/phase_evidence.py",
+    )
+    valid_file_records = bool(
+        isinstance(files, list)
+        and len(files) == len(expected_policy_paths)
+        and all(
+            isinstance(record, dict)
+            and set(record) == {"path", "sha256"}
+            and record.get("path") in expected_policy_paths
+            and re.fullmatch(r"[0-9a-f]{64}", str(record.get("sha256", "")))
+            for record in files
+        )
+        and tuple(record["path"] for record in files) == expected_policy_paths
+    )
+    policy_document = {
+        "files": files,
+        "source_commit": policy.get("source_commit"),
+        "source_tree": policy.get("source_tree"),
+    }
+    expected_policy_sha256 = hashlib.sha256(
+        json.dumps(
+            policy_document,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    if (
+        policy.get("source_commit") != expected_commit
+        or policy.get("current_source_commit_bound") is not True
+        or not re.fullmatch(r"[0-9a-f]{40}", str(policy.get("source_tree", "")))
+        or policy.get("policy_sha256") != expected_policy_sha256
+        or not valid_file_records
+    ):
+        raise ValueError("phase audit policy is not current and commit-bound")
+    return value
+
+
+def collect_phase_evidence_audit(
+    workspace_root: Path,
+    *,
+    expected_commit: str,
+) -> dict[str, Any]:
+    """Run the independent Phase 1-11 auditor with a pinned Python runtime."""
+
+    collector_root = Path(__file__).resolve().parents[1]
+    audit_script = _assert_non_reparse_path(
+        collector_root / "scripts" / "audit_phase_evidence.py"
+    )
+    before = _phase_audit_source_state(workspace_root, collector_root)
+    if before["workspace"]["commit"] != expected_commit:
+        return _phase_audit_unavailable(
+            "SOURCE_COMMIT_MISMATCH", "workspace commit changed before phase audit"
+        )
+    arguments = ["-I", str(audit_script), "--workspace", str(workspace_root)]
+    completed: subprocess.CompletedProcess[Any] | None = None
+    unavailable: dict[str, Any] | None = None
+    python: Path | None = None
+    python_sha256 = ""
+    try:
+        if _PRODUCTION_EXECUTABLES:
+            completed = _run_production_binary(
+                "python",
+                arguments,
+                timeout=PHASE_AUDIT_TIMEOUT_SECONDS,
+                text=True,
+            )
+        else:
+            python = _assert_non_reparse_path(Path(sys.executable).resolve())
+            python_sha256 = _bounded_file_sha256(python)
+            completed = _run_capped_command(
+                [str(python), *arguments],
+                timeout=PHASE_AUDIT_TIMEOUT_SECONDS,
+                text=True,
+                env=_production_subprocess_env(),
+            )
+        exit_code = 0
+    except subprocess.CalledProcessError as error:
+        exit_code = int(error.returncode)
+        if exit_code == 1:
+            completed = subprocess.CompletedProcess(
+                error.cmd, exit_code, error.output or "", error.stderr or ""
+            )
+        else:
+            unavailable = _phase_audit_unavailable(
+                f"EXIT_{exit_code}", "phase evidence auditor failed"
+            )
+    except subprocess.TimeoutExpired:
+        exit_code = -1
+        unavailable = _phase_audit_unavailable(
+            "TIMEOUT", "phase evidence auditor timed out"
+        )
+    except (OSError, RuntimeError):
+        exit_code = -1
+        unavailable = _phase_audit_unavailable(
+            "EXECUTION_ERROR", "phase evidence auditor could not be executed"
+        )
+
+    try:
+        if _PRODUCTION_EXECUTABLES:
+            _verify_production_executable("python")
+        elif python is not None and not hmac.compare_digest(
+            _bounded_file_sha256(python), python_sha256
+        ):
+            raise RuntimeError("Python runtime changed during phase audit")
+    except (OSError, RuntimeError):
+        unavailable = _phase_audit_unavailable(
+            "RUNTIME_CHANGED", "attested Python runtime check failed"
+        )
+
+    after = _phase_audit_source_state(workspace_root, collector_root)
+    if after != before:
+        return _phase_audit_unavailable(
+            "SOURCE_STATE_CHANGED", "source state changed during phase audit"
+        )
+    if unavailable is not None:
+        return unavailable
+    if completed is None:
+        return _phase_audit_unavailable(
+            "EXECUTION_ERROR", "phase evidence auditor returned no process result"
+        )
+    try:
+        report = _phase_audit_json(str(completed.stdout))
+        return _validate_phase_audit(
+            report,
+            expected_commit=expected_commit,
+            exit_code=exit_code,
+        )
+    except (TypeError, ValueError):
+        return _phase_audit_unavailable(
+            "MALFORMED_OUTPUT", "phase evidence auditor returned invalid output"
+        )
+
+
+def _capture_tasks_and_phase_audit(
+    workspace: Workspace,
+    *,
+    expected_commit: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Bind task projection and audit without holding an age-based lock long.
+
+    The creation lock is intentionally held only for each bounded inventory
+    capture.  The external phase auditor can take tens of seconds, while the
+    portable ``FileLock`` stale threshold is finite; holding that lock across
+    the subprocess would let a healthy lock be stolen and would also block
+    ordinary task creation.  Exact before/after task digests plus the audit's
+    source/operational fingerprint check make concurrent changes fail closed.
+    """
+
+    def capture() -> tuple[list[dict[str, Any]], str] | tuple[None, None]:
+        with FileLock(workspace.control_dir / "locks" / "task-create.lock"):
+            task_ids = sorted(path.stem for path in workspace.tasks_dir.glob("*.json"))
+            for task_id in task_ids:
+                if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", task_id):
+                    return None, None
+            tasks = workspace.list_tasks()
+            digest = hashlib.sha256(canonical_json(tasks)).hexdigest()
+            return tasks, digest
+
+    before, before_sha256 = capture()
+    if before is None or before_sha256 is None:
+        return [], _phase_audit_unavailable(
+            "TASK_INVENTORY_INVALID", "task inventory contains an invalid id"
+        )
+
+    audit = collect_phase_evidence_audit(
+        workspace.root,
+        expected_commit=expected_commit,
+    )
+
+    after, after_sha256 = capture()
+    if after is None or after_sha256 is None:
+        return [], _phase_audit_unavailable(
+            "TASK_INVENTORY_INVALID", "task inventory contains an invalid id"
+        )
+    if not hmac.compare_digest(before_sha256, after_sha256):
+        return after, _phase_audit_unavailable(
+            "TASK_INVENTORY_CHANGED",
+            "task inventory changed while phase evidence was audited",
+        )
+    return before, audit
+
+
+def _phase_audit_allows_release(
+    audit: dict[str, Any] | None,
+    *,
+    expected_commit: str,
+) -> bool:
+    if not isinstance(audit, dict):
+        return False
+    policy = audit.get("auditor_policy")
+    phases = audit.get("phases")
+    expected_phase_ids = tuple(contract["id"] for contract in phase_contracts())
+    phase_ids = (
+        tuple(phase.get("phase_id") for phase in phases if isinstance(phase, dict))
+        if isinstance(phases, list)
+        else ()
+    )
+    return bool(
+        audit.get("schema") == PHASE_AUDIT_SCHEMA
+        and audit.get("coverage_status") == "SEMANTIC_COVERAGE_PASS"
+        and audit.get("source_commit") == expected_commit
+        and audit.get("total_phases") == PHASE_AUDIT_EXPECTED_TOTAL
+        and audit.get("validated_phases") == PHASE_AUDIT_EXPECTED_TOTAL
+        and audit.get("progress_percent") == 100.0
+        and audit.get("release_authority") is False
+        and phase_ids == expected_phase_ids
+        and all(
+            isinstance(phase, dict)
+            and phase.get("coverage_status") == "SEMANTIC_COVERAGE_PASS"
+            and phase.get("source_commit") == expected_commit
+            and phase.get("release_authority") is False
+            and phase.get("reasons") == []
+            for phase in phases or []
+        )
+        and isinstance(policy, dict)
+        and policy.get("source_commit") == expected_commit
+        and policy.get("current_source_commit_bound") is True
+        and re.fullmatch(r"[0-9a-f]{64}", str(policy.get("policy_sha256", "")))
+    )
+
+
 def release_gate(
     workspace: Workspace,
     commit: str,
@@ -2511,6 +2916,7 @@ def release_gate(
     collector_commit: str | None = None,
     collector_tree: dict[str, Any] | None = None,
     operational_state: dict[str, Any] | None = None,
+    phase_evidence_audit: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project the immutable release-gate event into the public snapshot.
 
@@ -2559,6 +2965,13 @@ def release_gate(
         reasons.append("운영 증거 변경의 원장·projection 검증이 완료되지 않았습니다.")
     if not projection_audit.get("valid"):
         reasons.append("태스크 원장과 projection 파일이 일치하지 않습니다.")
+    if not _phase_audit_allows_release(
+        phase_evidence_audit,
+        expected_commit=commit,
+    ):
+        reasons.append(
+            "Phase 1-11 semantic evidence audit is not 11/11 PASS and policy-bound."
+        )
     if (
         gpu_telemetry_state != "MEASURED"
         or not gpu_measurement
@@ -2591,13 +3004,17 @@ def build_snapshot(
     include_gpu: bool,
 ) -> dict[str, Any]:
     observed_at = utc_now()
-    raw_tasks = workspace.list_tasks()
-    ledger = workspace.ledger.verify()
-    events = workspace.ledger.read()
     commit = git_commit(workspace.root)
     collector_root = Path(__file__).resolve().parents[1]
     collector_commit = git_commit(collector_root)
     collector_tree = git_tree_status(collector_root)
+    raw_tasks, phase_evidence_audit = _capture_tasks_and_phase_audit(
+        workspace,
+        expected_commit=commit,
+    )
+    audited_task_inventory_sha256 = hashlib.sha256(canonical_json(raw_tasks)).hexdigest()
+    ledger = workspace.ledger.verify()
+    events = workspace.ledger.read()
     projection_secret = _projection_secret()
     tasks = export_tasks(
         raw_tasks,
@@ -2649,6 +3066,32 @@ def build_snapshot(
         include_gpu,
         workspace_id=str(workspace.config["workspace_id"]),
     )
+    current_raw_tasks = workspace.list_tasks()
+    current_task_inventory_sha256 = hashlib.sha256(
+        canonical_json(current_raw_tasks)
+    ).hexdigest()
+    if not hmac.compare_digest(
+        audited_task_inventory_sha256,
+        current_task_inventory_sha256,
+    ):
+        raw_tasks = current_raw_tasks
+        audited_task_inventory_sha256 = current_task_inventory_sha256
+        phase_evidence_audit = _phase_audit_unavailable(
+            "TASK_INVENTORY_CHANGED",
+            "task inventory changed after phase evidence audit",
+        )
+        tasks = export_tasks(
+            raw_tasks,
+            current_commit=commit,
+            workspace_root=workspace.root,
+            projection_secret=projection_secret,
+        )
+        agents = export_agents(
+            workspace,
+            tasks,
+            commit,
+            projection_secret=projection_secret,
+        )
     gate = release_gate(
         workspace,
         commit,
@@ -2663,6 +3106,7 @@ def build_snapshot(
         collector_commit=collector_commit,
         collector_tree=collector_tree,
         operational_state=operational_state,
+        phase_evidence_audit=phase_evidence_audit,
     )
     alerts: list[dict[str, Any]] = []
     disputed = [
@@ -2735,6 +3179,47 @@ def build_snapshot(
                 "severity": "critical",
                 "code": "UNVERIFIED_OPERATIONAL_STATE",
                 "message": "운영 증거 변경이 원장·projection 정책을 통과하지 못했습니다.",
+                "observed_at": observed_at,
+            }
+        )
+    final_raw_tasks = workspace.list_tasks()
+    final_task_inventory_sha256 = hashlib.sha256(
+        canonical_json(final_raw_tasks)
+    ).hexdigest()
+    if not hmac.compare_digest(
+        audited_task_inventory_sha256,
+        final_task_inventory_sha256,
+    ):
+        raw_tasks = final_raw_tasks
+        phase_evidence_audit = _phase_audit_unavailable(
+            "TASK_INVENTORY_CHANGED",
+            "task inventory changed while the snapshot was assembled",
+        )
+        tasks = export_tasks(
+            raw_tasks,
+            current_commit=commit,
+            workspace_root=workspace.root,
+            projection_secret=projection_secret,
+        )
+        agents = export_agents(
+            workspace,
+            tasks,
+            commit,
+            projection_secret=projection_secret,
+        )
+        gate = {
+            "status": "NO_GO",
+            "reasons": [
+                *gate.get("reasons", []),
+                "Task inventory changed after Phase 1-11 evidence audit.",
+            ],
+            "evidence_sha256": None,
+        }
+        alerts.append(
+            {
+                "severity": "critical",
+                "code": "TASK_INVENTORY_CHANGED",
+                "message": "Task inventory changed while the monitoring snapshot was assembled.",
                 "observed_at": observed_at,
             }
         )
@@ -2823,6 +3308,7 @@ def build_snapshot(
         "alerts": alerts,
         "release_gate": gate,
         "release_deployment": release_deployment,
+        "phase_evidence_audit": phase_evidence_audit,
         "source": {
             "git_commit": commit,
             "status_scope": "trusted-source-v1",

@@ -619,7 +619,7 @@ try {
                 operational_ingest_ready = $true
                 release_attribution_ready = $false
                 release_evidence_state = 'API_EVIDENCE_REQUIRED'
-                minimum_release_snapshot_schema = '1.2'
+                minimum_release_snapshot_schema = '1.3'
             }
             deployment = [pscustomobject]@{
                 attribution = 'BUILD_BOUND'
@@ -638,7 +638,7 @@ try {
             -ExpectedSourceCommit $commit
         if (
             $result.source_commit -ne $commit -or
-            $result.minimum_release_snapshot_schema -ne '1.2' -or
+            $result.minimum_release_snapshot_schema -ne '1.3' -or
             $result.operational_ingest -ne 'READY' -or
             $result.release_readiness -ne 'NO_GO_API_EVIDENCE_REQUIRED'
         ) {

@@ -919,7 +919,11 @@ class TrustGateTestCase(unittest.TestCase):
             current_source_commit=source_commit,
             workspace_root=self.root,
         )
-        self.assertEqual(result["coverage_status"], "SEMANTIC_COVERAGE_PASS")
+        self.assertEqual(
+            result["coverage_status"],
+            "SEMANTIC_COVERAGE_PASS",
+            result["reasons"],
+        )
         self.assertFalse(result["release_authority"])
         trusted = verified["verification"]["trusted_validation"]
         self.assertNotEqual(

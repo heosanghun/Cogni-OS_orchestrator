@@ -15,6 +15,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import math
 import os
 import stat
 import subprocess
@@ -47,9 +48,9 @@ PRODUCTION_ENDPOINTS = {
 }
 CLOUDFLARE_PROJECT = "cogni-os-orchestrator"
 MAX_EVIDENCE_BYTES = 2 * 1024 * 1024
-EXPECTED_PYTHON_TESTS = 334
+EXPECTED_PYTHON_TESTS = 349
 EXPECTED_TEST_INVENTORY_SHA256 = (
-    "8eb89ef30636414168bed0f3581c9b0e7cde694f82976164cb94d2f87f1e0aa9"
+    "0aa88650fa41a9e10a7bab3f3c37c7a5afb78fd348593f4eee939b77de180928"
 )
 T001_ORIGINAL_SEQUENCE = 9
 T001_ORIGINAL_HASH = "fefc108428d76fa50ddb254e463c58e7e19849145c9f309bbc856fb84de83a78"
@@ -713,11 +714,172 @@ def _validate_health(value: dict[str, Any], expected_commit: str) -> dict[str, A
         or checks["operational_ingest_ready"] is not True
         or checks["release_attribution_ready"] is not False
         or checks["release_evidence_state"] != "API_EVIDENCE_REQUIRED"
-        or checks["minimum_release_snapshot_schema"] != "1.2"
+        or checks["minimum_release_snapshot_schema"] != "1.3"
     ):
         raise ValidationError("production health is not configured")
     _timestamp(value["timestamp"], "health")
     return _validate_build_deployment(value["deployment"], expected_commit)
+
+
+def _js_canonical_json(value: Any) -> str:
+    """Canonicalize the bounded phase-audit value like JS JSON.stringify."""
+
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValidationError("phase audit contains a non-finite number")
+        if value == 0:
+            return "0"
+        if value.is_integer():
+            return str(int(value))
+        return format(value, ".15g")
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    if isinstance(value, list):
+        return "[" + ",".join(_js_canonical_json(item) for item in value) + "]"
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) for key in value):
+            raise ValidationError("phase audit contains a non-string object key")
+        return "{" + ",".join(
+            f"{json.dumps(key, ensure_ascii=False)}:{_js_canonical_json(value[key])}"
+            for key in sorted(value)
+        ) + "}"
+    raise ValidationError("phase audit contains an unsupported JSON value")
+
+
+def _validate_phase_evidence_audit_for_p01(
+    audit: Any,
+    expected_commit: str,
+) -> str:
+    value = _expect_keys(
+        audit,
+        (
+            {"schema", "coverage_status", "error", "release_authority"}
+            if isinstance(audit, dict)
+            and audit.get("schema") == "cogni.phase-evidence-audit-error.v2"
+            else {
+                "schema",
+                "coverage_status",
+                "source_commit",
+                "total_phases",
+                "validated_phases",
+                "progress_percent",
+                "phases",
+                "release_authority",
+                "auditor_policy",
+            }
+        ),
+        "phase evidence audit",
+    )
+    if value["schema"] == "cogni.phase-evidence-audit-error.v2":
+        error = _expect_keys(value["error"], {"code", "message"}, "phase audit error")
+        if (
+            value["coverage_status"] != "AUDIT_UNAVAILABLE"
+            or value["release_authority"] is not False
+            or not isinstance(error["code"], str)
+            or not 1 <= len(error["code"]) <= 64
+            or any(character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_" for character in error["code"])
+            or not isinstance(error["message"], str)
+            or not 1 <= len(error["message"]) <= 256
+        ):
+            raise ValidationError("phase audit unavailable projection is invalid")
+    else:
+        if (
+            value["schema"] != "cogni.phase-evidence-audit.v2"
+            or value["coverage_status"] != "NO_GO"
+            or value["source_commit"] != expected_commit
+            or value["total_phases"] != len(PHASE_IDS)
+            or value["validated_phases"] != 0
+            or value["progress_percent"] != 0
+            or value["release_authority"] is not False
+            or not isinstance(value["phases"], list)
+            or len(value["phases"]) != len(PHASE_IDS)
+        ):
+            raise ValidationError("Phase 1 audit is not the canonical 0-of-11 NO_GO")
+        seen_digests: set[str] = set()
+        for expected_phase_id, phase in zip(PHASE_IDS, value["phases"], strict=True):
+            record = _expect_keys(
+                phase,
+                {
+                    "phase_id",
+                    "coverage_status",
+                    "reasons",
+                    "source_commit",
+                    "artifact_sha256",
+                    "trusted_output_sha256",
+                    "release_authority",
+                },
+                "phase audit phase",
+            )
+            digests = [
+                *(record["artifact_sha256"] if isinstance(record["artifact_sha256"], list) else []),
+                *(record["trusted_output_sha256"] if isinstance(record["trusted_output_sha256"], list) else []),
+            ]
+            if (
+                record["phase_id"] != expected_phase_id
+                or record["coverage_status"] != "NO_GO"
+                or record["source_commit"] not in {None, expected_commit}
+                or record["release_authority"] is not False
+                or not isinstance(record["reasons"], list)
+                or not record["reasons"]
+                or any(not isinstance(reason, str) or not reason for reason in record["reasons"])
+                or not isinstance(record["artifact_sha256"], list)
+                or not isinstance(record["trusted_output_sha256"], list)
+                or any(not _is_sha256(digest) or digest in seen_digests for digest in digests)
+            ):
+                raise ValidationError("phase audit NO_GO evidence is invalid")
+            seen_digests.update(digests)
+        policy = _expect_keys(
+            value["auditor_policy"],
+            {
+                "source_commit",
+                "source_tree",
+                "current_source_commit_bound",
+                "policy_sha256",
+                "files",
+            },
+            "phase audit policy",
+        )
+        expected_paths = [
+            "scripts/audit_phase_evidence.py",
+            "src/cogni_os/phase_evidence.py",
+        ]
+        files = policy["files"]
+        if (
+            policy["source_commit"] != expected_commit
+            or not _is_git_commit(policy["source_tree"])
+            or policy["current_source_commit_bound"] is not True
+            or not _is_sha256(policy["policy_sha256"])
+            or not isinstance(files, list)
+            or len(files) != len(expected_paths)
+        ):
+            raise ValidationError("phase audit policy is not source-bound")
+        for expected_path, file in zip(expected_paths, files, strict=True):
+            record = _expect_keys(file, {"path", "sha256"}, "phase audit policy file")
+            if record["path"] != expected_path or not _is_sha256(record["sha256"]):
+                raise ValidationError("phase audit policy file order is invalid")
+        policy_document = {
+            "files": files,
+            "source_commit": policy["source_commit"],
+            "source_tree": policy["source_tree"],
+        }
+        if policy["policy_sha256"] != hashlib.sha256(
+            json.dumps(
+                policy_document,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest():
+            raise ValidationError("phase audit policy digest is invalid")
+    return hashlib.sha256(_js_canonical_json(value).encode("utf-8")).hexdigest()
 
 
 def _validate_snapshot(
@@ -757,11 +919,13 @@ def _validate_snapshot(
             "monitoring",
             "deployment",
             "release_deployment",
+            "phase_evidence_audit",
+            "phase_evidence_binding",
         },
         "production snapshot",
     )
     if (
-        value["schema_version"] != "1.2"
+        value["schema_version"] != "1.3"
         or value["system"] != "Cogni-OS Operations"
         or value["workspace_id"] != workspace_id
         or value["data_classification"] != "operational-metadata-only"
@@ -772,6 +936,9 @@ def _validate_snapshot(
         raise ValidationError("snapshot top-level provenance is invalid")
     observed_at = _timestamp(value["observed_at"], "snapshot observed_at")
     _timestamp(value["timestamp"], "snapshot response")
+    phase_audit_sha256 = _validate_phase_evidence_audit_for_p01(
+        value["phase_evidence_audit"], expected_commit
+    )
 
     collector = _expect_keys(
         value["collector"],
@@ -1168,6 +1335,35 @@ def _validate_snapshot(
         or any(not isinstance(reason, str) or not reason for reason in gate["reasons"])
     ):
         raise ValidationError("Phase 1 must retain a reasoned global NO_GO gate")
+    binding = _expect_keys(
+        value["phase_evidence_binding"],
+        {
+            "schema",
+            "audit_sha256",
+            "source_commit",
+            "sequence",
+            "body_sha256",
+            "deployment_id",
+            "deployment_url",
+            "release_gate_evidence_sha256",
+            "signature_verified",
+        },
+        "phase evidence binding",
+    )
+    if (
+        binding["schema"] != "cogni.phase-evidence-monitor-binding.v1"
+        or binding["audit_sha256"] != phase_audit_sha256
+        or binding["source_commit"] != expected_commit
+        or binding["sequence"] != value["sequence"]
+        or binding["sequence"] != monitoring["sequence"]
+        or binding["body_sha256"] != monitoring["body_sha256"]
+        or binding["deployment_id"] != release_deployment["deployment_id"]
+        or binding["deployment_url"] != release_deployment["deployment_url"]
+        or binding["release_gate_evidence_sha256"] != gate["evidence_sha256"]
+        or binding["signature_verified"] is not True
+        or monitoring["payload_signature_verified"] is not True
+    ):
+        raise ValidationError("phase evidence binding is not server-derived and cross-bound")
     if not isinstance(value["alerts"], list):
         raise ValidationError("snapshot alerts must be a list")
     allowed_critical = {"UNTRUSTED_VERIFICATION"}

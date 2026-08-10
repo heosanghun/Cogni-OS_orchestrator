@@ -11,7 +11,12 @@ import {
   verifySignature,
 } from "../_lib/monitoring.js";
 
-const SCHEMA_RANK = Object.freeze({ "1.0": 100, "1.1": 101, "1.2": 102 });
+const SCHEMA_RANK = Object.freeze({
+  "1.0": 100,
+  "1.1": 101,
+  "1.2": 102,
+  "1.3": 103,
+});
 
 function databaseError(error) {
   const message = String(error?.message || error);
@@ -233,6 +238,7 @@ export async function onRequest(context) {
                (SELECT payload FROM monitor_snapshots WHERE workspace_id = ?1),
                '$.schema_version'
              )
+               WHEN '1.3' THEN 103
                WHEN '1.2' THEN 102
                WHEN '1.1' THEN 101
                WHEN '1.0' THEN 100
@@ -358,6 +364,7 @@ export async function onRequest(context) {
              (SELECT payload FROM monitor_snapshots WHERE workspace_id = ?1),
              '$.schema_version'
            )
+             WHEN '1.3' THEN 103
              WHEN '1.2' THEN 102
              WHEN '1.1' THEN 101
              WHEN '1.0' THEN 100

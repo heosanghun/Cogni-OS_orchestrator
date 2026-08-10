@@ -21,6 +21,9 @@ from .trust_projection import task_trust_projection
 
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_TRUSTED_RUNNER_ID = "cogni-os-trusted-runner-v3"
+_TRUSTED_RUNTIME_POLICY_ID = "fixed-admin-runtime-readonly-v1"
+_TRUSTED_RUNTIME_PROVENANCE = "fixed-admin-path-chain"
 
 PHASE_EVIDENCE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "P01-TRUTH": (
@@ -162,6 +165,28 @@ def _trusted_outputs(
         reasons.append("TRUSTED_SOURCE_POSTCHECK_FAILED")
     if trusted.get("source_commit") != current_source_commit:
         reasons.append("TRUSTED_SOURCE_COMMIT_MISMATCH")
+    if (
+        trusted.get("runner") != _TRUSTED_RUNNER_ID
+        or trusted.get("isolation_attested") is not True
+        or trusted.get("snapshot_precheck_passed") is not True
+        or trusted.get("snapshot_postcheck_passed") is not True
+        or not isinstance(trusted.get("operational_change_count"), int)
+        or isinstance(trusted.get("operational_change_count"), bool)
+        or trusted.get("operational_change_count") < 0
+        or trusted.get("network_allowed") is not False
+        or any(
+            not _is_sha256(trusted.get(field))
+            for field in (
+                "receipt_sha256",
+                "receipt_preimage_sha256",
+                "verifier_manifest_sha256",
+                "validation_contract_sha256",
+                "environment_sha256",
+                "sandbox_environment_sha256",
+            )
+        )
+    ):
+        reasons.append("TRUSTED_RUNNER_PROVENANCE_INVALID")
     validations = _sequence(trusted.get("validations"))
     if validations is None:
         return {}, [*reasons, "TRUSTED_VALIDATIONS_INVALID"]
@@ -174,6 +199,8 @@ def _trusted_outputs(
             reasons.append(f"TRUSTED_VALIDATION_{index}_INVALID")
             continue
         argv = _sequence(record.get("command_argv"))
+        executed_argv = _sequence(record.get("executed_argv"))
+        command_policy = _mapping(record.get("command_policy"))
         digest = record.get("output_sha256")
         size = record.get("output_size_bytes")
         if (
@@ -186,6 +213,12 @@ def _trusted_outputs(
             or not _is_sha256(digest)
             or argv is None
             or any(not isinstance(argument, str) or not argument for argument in argv)
+            or executed_argv is None
+            or any(
+                not isinstance(argument, str) or not argument
+                for argument in executed_argv
+            )
+            or command_policy is None
         ):
             reasons.append(f"TRUSTED_VALIDATION_{index}_FAILED")
             continue
@@ -194,6 +227,49 @@ def _trusted_outputs(
             reasons.append(f"TRUSTED_VALIDATION_{index}_COMMAND_NOT_PINNED")
             continue
         selector = arguments[-1]
+        executed_arguments = list(executed_argv)
+        executable_binding = _mapping(command_policy.get("executable_binding"))
+        code_paths = _sequence(command_policy.get("code_paths"))
+        expected_test_suffix = (
+            Path("src")
+            .joinpath(*selector.split(".")[:-2])
+            .with_suffix(".py")
+            .as_posix()
+        )
+        code_record = (
+            _mapping(code_paths[0])
+            if code_paths is not None and len(code_paths) == 1
+            else None
+        )
+        code_path = code_record.get("path") if code_record is not None else None
+        code_digest = code_record.get("sha256") if code_record is not None else None
+        executable_path = command_policy.get("executable_path")
+        executable_digest = command_policy.get("executable_sha256")
+        if (
+            len(executed_arguments) != 4
+            or executed_arguments[1:] != arguments[1:]
+            or not isinstance(executable_path, str)
+            or not Path(executable_path).is_absolute()
+            or arguments[0] != executable_path
+            or executed_arguments[0] != executable_path
+            or command_policy.get("kind") != "python"
+            or command_policy.get("executed_argv") != executed_arguments
+            or not _is_sha256(executable_digest)
+            or record.get("executable_sha256_after") != executable_digest
+            or executable_binding is None
+            or executable_binding.get("policy_id") != _TRUSTED_RUNTIME_POLICY_ID
+            or executable_binding.get("kind") != "python"
+            or executable_binding.get("path") != executable_path
+            or executable_binding.get("sha256") != executable_digest
+            or executable_binding.get("provenance")
+            not in {_TRUSTED_RUNTIME_PROVENANCE, "test-only-fixture"}
+            or not isinstance(code_path, str)
+            or not Path(code_path).as_posix().endswith(expected_test_suffix)
+            or not _is_sha256(code_digest)
+            or code_digest in {digest, executable_digest}
+        ):
+            reasons.append(f"TRUSTED_VALIDATION_{index}_PROVENANCE_INVALID")
+            continue
         if selector in by_selector:
             reasons.append(f"TRUSTED_VALIDATION_SELECTOR_REUSED:{selector}")
             continue
@@ -322,6 +398,12 @@ def audit_phase_task(
             reasons.append(f"{requirement_id}:TRUSTED_OUTPUT_NOT_BOUND")
         else:
             bound_outputs.append(str(output_sha256))
+        if (
+            _is_sha256(artifact_sha256)
+            and _is_sha256(output_sha256)
+            and artifact_sha256 == output_sha256
+        ):
+            reasons.append(f"{requirement_id}:ARTIFACT_OUTPUT_DIGEST_COLLISION")
 
     if tuple(observed_ids) != expected_ids:
         reasons.append("PHASE_REQUIREMENT_COVERAGE_MISMATCH")
@@ -390,6 +472,20 @@ def audit_phase_tasks(
                 if phase["phase_id"] in phase_ids:
                     phase["coverage_status"] = "NO_GO"
                     phase["reasons"].append(f"{reason}:{digest}")
+
+    artifact_owners: dict[str, set[str]] = {}
+    output_owners: dict[str, set[str]] = {}
+    for phase in phases:
+        for digest in phase["artifact_sha256"]:
+            artifact_owners.setdefault(digest, set()).add(phase["phase_id"])
+        for digest in phase["trusted_output_sha256"]:
+            output_owners.setdefault(digest, set()).add(phase["phase_id"])
+    for digest in sorted(set(artifact_owners) & set(output_owners)):
+        affected = artifact_owners[digest] | output_owners[digest]
+        for phase in phases:
+            if phase["phase_id"] in affected:
+                phase["coverage_status"] = "NO_GO"
+                phase["reasons"].append(f"CROSS_DOMAIN_DIGEST_REUSE:{digest}")
 
     validated = sum(
         phase["coverage_status"] == "SEMANTIC_COVERAGE_PASS" for phase in phases

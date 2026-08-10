@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { readdirSync } from "node:fs";
 
-const EXPECTED_WEB_TESTS = 42;
+const EXPECTED_WEB_TESTS = 68;
 const EXPECTED_WEB_TEST_INVENTORY_SHA256 =
-  "ab17b427033bf59cc8cb5d57316cad9d5ddb92b26411ce99316b69e0572ae53f";
+  "494cb1507fe4e87b532a766fde8b4a08224dae0cd837eb2f547f6610a6d8c8d9";
 
 function run(args) {
   return spawnSync(process.execPath, args, {
@@ -18,12 +19,11 @@ function run(args) {
 if (process.argv.length !== 2) {
   throw new Error("Phase 1 Node validation accepts no actor-controlled policy arguments");
 }
-const web = run([
-  "--test",
-  "--test-reporter=tap",
-  "tests/web/monitoring.test.mjs",
-  "tests/web/release-audit.test.mjs",
-]);
+const webTestFiles = readdirSync("tests/web", { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith(".test.mjs"))
+  .map((entry) => `tests/web/${entry.name}`)
+  .sort();
+const web = run(["--test", "--test-reporter=tap", ...webTestFiles]);
 const summary = Object.fromEntries(
   ["tests", "pass", "fail", "skipped"].map((key) => {
     const match = web.stdout.match(new RegExp(`^# ${key} (\\d+)$`, "m"));
@@ -70,6 +70,7 @@ const record = {
   web: {
     ...summary,
     exit_code: web.status,
+    files: webTestFiles,
     inventory_names: inventoryNames.length,
     inventory_sha256: inventorySha256,
   },

@@ -265,8 +265,25 @@ class PhaseOneValidatorTests(unittest.TestCase):
             for index, phase_id in enumerate(VALIDATOR.PHASE_IDS)
         ]
         deployment = self._build_deployment(self.commit)
+        phase_audit = {
+            "schema": "cogni.phase-evidence-audit-error.v2",
+            "coverage_status": "AUDIT_UNAVAILABLE",
+            "error": {
+                "code": "TEST_NO_GO",
+                "message": "Phase evidence is unavailable in the P01 fixture.",
+            },
+            "release_authority": False,
+        }
+        phase_audit_sha256 = hashlib.sha256(
+            json.dumps(
+                phase_audit,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
         return {
-            "schema_version": "1.2",
+            "schema_version": "1.3",
             "system": "Cogni-OS Operations",
             "workspace_id": self.workspace_id,
             "workspace_name": "Phase 1 fixture",
@@ -409,6 +426,18 @@ class PhaseOneValidatorTests(unittest.TestCase):
                 "canonical_url": "https://cogni-os-orchestrator.pages.dev",
                 "source_commit": self.commit,
             },
+            "phase_evidence_audit": phase_audit,
+            "phase_evidence_binding": {
+                "schema": "cogni.phase-evidence-monitor-binding.v1",
+                "audit_sha256": phase_audit_sha256,
+                "source_commit": self.commit,
+                "sequence": 73,
+                "body_sha256": "4" * 64,
+                "deployment_id": self.current_deployment_id,
+                "deployment_url": deployment["deployment_url"],
+                "release_gate_evidence_sha256": None,
+                "signature_verified": True,
+            },
         }
 
     def _capture(self, endpoint: str, filename: str, body: bytes) -> dict[str, Any]:
@@ -455,7 +484,7 @@ class PhaseOneValidatorTests(unittest.TestCase):
                 "operational_ingest_ready": True,
                 "release_attribution_ready": False,
                 "release_evidence_state": "API_EVIDENCE_REQUIRED",
-                "minimum_release_snapshot_schema": "1.2",
+                "minimum_release_snapshot_schema": "1.3",
             },
             "deployment": deployment,
             "timestamp": self.observed_at,
@@ -758,6 +787,99 @@ class PhaseOneValidatorTests(unittest.TestCase):
                     VALIDATOR.ValidationError, "fresh, signed, and LIVE"
                 ):
                     self._validate(event)
+
+    def test_rejects_phase_evidence_binding_or_audit_tampering(self) -> None:
+        mutations = {
+            "audit_digest": lambda snapshot: snapshot["phase_evidence_binding"].update(
+                audit_sha256="0" * 64
+            ),
+            "body_digest": lambda snapshot: snapshot["phase_evidence_binding"].update(
+                body_sha256="0" * 64
+            ),
+            "sequence": lambda snapshot: snapshot["phase_evidence_binding"].update(
+                sequence=74
+            ),
+            "signature": lambda snapshot: snapshot["phase_evidence_binding"].update(
+                signature_verified=False
+            ),
+            "audit_content": lambda snapshot: snapshot["phase_evidence_audit"][
+                "error"
+            ].update(message="Tampered after server binding."),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                def invalidate(documents: dict[str, dict[str, Any]]) -> None:
+                    mutate(documents["snapshot"])
+
+                event, _ = self._fixture(invalidate)
+                with self.assertRaisesRegex(
+                    VALIDATOR.ValidationError, "phase evidence binding"
+                ):
+                    self._validate(event)
+
+    def test_accepts_canonical_zero_of_eleven_phase_audit(self) -> None:
+        def install_no_go_audit(documents: dict[str, dict[str, Any]]) -> None:
+            snapshot = documents["snapshot"]
+            policy_files = [
+                {
+                    "path": "scripts/audit_phase_evidence.py",
+                    "sha256": "a" * 64,
+                },
+                {
+                    "path": "src/cogni_os/phase_evidence.py",
+                    "sha256": "b" * 64,
+                },
+            ]
+            policy_document = {
+                "files": policy_files,
+                "source_commit": self.commit,
+                "source_tree": "c" * 40,
+            }
+            audit = {
+                "schema": "cogni.phase-evidence-audit.v2",
+                "coverage_status": "NO_GO",
+                "source_commit": self.commit,
+                "total_phases": 11,
+                "validated_phases": 0,
+                "progress_percent": 0.0,
+                "phases": [
+                    {
+                        "phase_id": phase_id,
+                        "coverage_status": "NO_GO",
+                        "reasons": ["TEST_NOT_VERIFIED"],
+                        "source_commit": None,
+                        "artifact_sha256": [],
+                        "trusted_output_sha256": [],
+                        "release_authority": False,
+                    }
+                    for phase_id in VALIDATOR.PHASE_IDS
+                ],
+                "release_authority": False,
+                "auditor_policy": {
+                    **policy_document,
+                    "current_source_commit_bound": True,
+                    "policy_sha256": hashlib.sha256(
+                        json.dumps(
+                            policy_document,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                            sort_keys=True,
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                },
+            }
+            snapshot["phase_evidence_audit"] = audit
+            snapshot["phase_evidence_binding"]["audit_sha256"] = hashlib.sha256(
+                VALIDATOR._js_canonical_json(audit).encode("utf-8")
+            ).hexdigest()
+
+        event, _ = self._fixture(install_no_go_audit)
+        result = self._validate(event)
+        self.assertEqual(result["source_commit"], self.commit)
+        self.assertEqual(
+            VALIDATOR._js_canonical_json({"progress": 100.0, "zero": 0.0}),
+            '{"progress":100,"zero":0}',
+        )
 
     def test_ignores_mutable_reports_and_runs_as_release_truth(self) -> None:
         event, _ = self._fixture()

@@ -1,7 +1,12 @@
 import { BUILD_DEPLOYMENT } from "./deployment.generated.js";
 
-export const SNAPSHOT_SCHEMA_VERSION = "1.2";
-const SUPPORTED_SNAPSHOT_SCHEMA_VERSIONS = new Set(["1.0", "1.1", "1.2"]);
+export const SNAPSHOT_SCHEMA_VERSION = "1.3";
+const SUPPORTED_SNAPSHOT_SCHEMA_VERSIONS = new Set([
+  "1.0",
+  "1.1",
+  "1.2",
+  "1.3",
+]);
 export const INGEST_PROTOCOL = "COGNI-SNAPSHOT-V2";
 export const DEFAULT_MAX_AGE_SECONDS = 180;
 export const DEFAULT_MAX_CLOCK_SKEW_SECONDS = 300;
@@ -51,6 +56,265 @@ const ROADMAP_PHASE_IDS = [
   "P10-COGNIBOARD",
   "P11-RELEASE",
 ];
+const PHASE_REQUIREMENT_COUNTS = new Map([
+  ["P01-TRUTH", 3],
+  ["P02-ORCHESTRATION", 4],
+  ["P03-EVIDENCE", 3],
+  ["P04-WORLD", 3],
+  ["P05-FINANCE", 3],
+  ["P06-TWIN", 3],
+  ["P07-WORKSPACE", 3],
+  ["P08-CORE", 3],
+  ["P09-HARNESS", 3],
+  ["P10-COGNIBOARD", 3],
+  ["P11-RELEASE", 4],
+]);
+const AUDITOR_POLICY_PATHS = [
+  "scripts/audit_phase_evidence.py",
+  "src/cogni_os/phase_evidence.py",
+];
+const PHASE_BINDING_KEYS = new Set([
+  "schema",
+  "audit_sha256",
+  "source_commit",
+  "sequence",
+  "body_sha256",
+  "deployment_id",
+  "deployment_url",
+  "release_gate_evidence_sha256",
+  "signature_verified",
+]);
+
+function canonicalJson(value) {
+  if (
+    value === null ||
+    typeof value === "boolean" ||
+    typeof value === "string"
+  ) {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("canonical JSON rejects non-finite numbers");
+    }
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
+  }
+  throw new Error("canonical JSON rejects unsupported values");
+}
+
+function validatePhaseEvidenceAudit(audit, sourceCommit) {
+  requireObject(audit, "snapshot.phase_evidence_audit");
+  if (audit.schema === "cogni.phase-evidence-audit-error.v2") {
+    rejectUnexpectedKeys(
+      audit,
+      new Set(["schema", "coverage_status", "error", "release_authority"]),
+      "snapshot.phase_evidence_audit",
+    );
+    const error = requireObject(
+      audit.error,
+      "snapshot.phase_evidence_audit.error",
+    );
+    rejectUnexpectedKeys(
+      error,
+      new Set(["code", "message"]),
+      "snapshot.phase_evidence_audit.error",
+    );
+    if (
+      audit.coverage_status !== "AUDIT_UNAVAILABLE" ||
+      audit.release_authority !== false ||
+      !/^[A-Z0-9_]{1,64}$/.test(String(error.code || "")) ||
+      typeof error.message !== "string" ||
+      error.message.length < 1 ||
+      error.message.length > 256
+    ) {
+      throw new Error("snapshot.phase_evidence_audit error state is invalid");
+    }
+    return audit;
+  }
+  rejectUnexpectedKeys(
+    audit,
+    new Set([
+      "schema",
+      "coverage_status",
+      "source_commit",
+      "total_phases",
+      "validated_phases",
+      "progress_percent",
+      "phases",
+      "release_authority",
+      "auditor_policy",
+    ]),
+    "snapshot.phase_evidence_audit",
+  );
+  if (
+    audit.schema !== "cogni.phase-evidence-audit.v2" ||
+    audit.source_commit !== sourceCommit ||
+    audit.release_authority !== false ||
+    !Array.isArray(audit.phases) ||
+    audit.phases.length !== ROADMAP_PHASE_IDS.length
+  ) {
+    throw new Error("snapshot.phase_evidence_audit identity is invalid");
+  }
+
+  const seenDigests = new Set();
+  let validatedPhases = 0;
+  audit.phases.forEach((phase, index) => {
+    const name = `snapshot.phase_evidence_audit.phases[${index}]`;
+    const phaseId = ROADMAP_PHASE_IDS[index];
+    const expectedCount = PHASE_REQUIREMENT_COUNTS.get(phaseId);
+    requireObject(phase, name);
+    rejectUnexpectedKeys(
+      phase,
+      new Set([
+        "phase_id",
+        "coverage_status",
+        "reasons",
+        "source_commit",
+        "artifact_sha256",
+        "trusted_output_sha256",
+        "release_authority",
+      ]),
+      name,
+    );
+    const passing = phase.coverage_status === "SEMANTIC_COVERAGE_PASS";
+    const noGo = phase.coverage_status === "NO_GO";
+    if (
+      phase.phase_id !== phaseId ||
+      (!passing && !noGo) ||
+      (phase.source_commit !== sourceCommit && phase.source_commit !== null) ||
+      phase.release_authority !== false ||
+      !Array.isArray(phase.reasons) ||
+      phase.reasons.length > 64 ||
+      phase.reasons.some(
+        (reason) =>
+          typeof reason !== "string" ||
+          reason.length < 1 ||
+          reason.length > 512,
+      ) ||
+      (passing &&
+        (phase.source_commit !== sourceCommit || phase.reasons.length !== 0)) ||
+      (noGo && phase.reasons.length === 0) ||
+      !Array.isArray(phase.artifact_sha256) ||
+      phase.artifact_sha256.length > expectedCount ||
+      !Array.isArray(phase.trusted_output_sha256) ||
+      phase.trusted_output_sha256.length > expectedCount ||
+      (passing && phase.artifact_sha256.length !== expectedCount) ||
+      (passing && phase.trusted_output_sha256.length !== expectedCount)
+    ) {
+      throw new Error(`${name} semantic coverage is invalid`);
+    }
+    for (const digest of [
+      ...phase.artifact_sha256,
+      ...phase.trusted_output_sha256,
+    ]) {
+      if (!HEX_64.test(String(digest || "")) || seenDigests.has(digest)) {
+        throw new Error(`${name} contains an invalid or reused evidence digest`);
+      }
+      seenDigests.add(digest);
+    }
+    if (passing) validatedPhases += 1;
+  });
+
+  const progressPercent =
+    Math.round((validatedPhases / ROADMAP_PHASE_IDS.length) * 1000) / 10;
+  if (
+    audit.coverage_status !==
+      (validatedPhases === ROADMAP_PHASE_IDS.length
+        ? "SEMANTIC_COVERAGE_PASS"
+        : "NO_GO") ||
+    audit.total_phases !== ROADMAP_PHASE_IDS.length ||
+    audit.validated_phases !== validatedPhases ||
+    audit.progress_percent !== progressPercent
+  ) {
+    throw new Error(
+      "snapshot.phase_evidence_audit summary is not evidence-derived",
+    );
+  }
+
+  const policy = requireObject(
+    audit.auditor_policy,
+    "snapshot.phase_evidence_audit.auditor_policy",
+  );
+  rejectUnexpectedKeys(
+    policy,
+    new Set([
+      "source_commit",
+      "source_tree",
+      "current_source_commit_bound",
+      "policy_sha256",
+      "files",
+    ]),
+    "snapshot.phase_evidence_audit.auditor_policy",
+  );
+  if (
+    policy.source_commit !== sourceCommit ||
+    !/^[0-9a-f]{40}$/.test(String(policy.source_tree || "")) ||
+    policy.current_source_commit_bound !== true ||
+    !HEX_64.test(String(policy.policy_sha256 || "")) ||
+    !Array.isArray(policy.files) ||
+    policy.files.length !== AUDITOR_POLICY_PATHS.length
+  ) {
+    throw new Error("snapshot.phase_evidence_audit auditor policy is invalid");
+  }
+  policy.files.forEach((file, index) => {
+    const name = `snapshot.phase_evidence_audit.auditor_policy.files[${index}]`;
+    requireObject(file, name);
+    rejectUnexpectedKeys(file, new Set(["path", "sha256"]), name);
+    if (
+      file.path !== AUDITOR_POLICY_PATHS[index] ||
+      !HEX_64.test(String(file.sha256 || ""))
+    ) {
+      throw new Error(`${name} is invalid`);
+    }
+  });
+  return audit;
+}
+
+function phaseEvidenceBindingTrusted(snapshot) {
+  const binding = snapshot?.phase_evidence_binding;
+  const monitoring = snapshot?.monitoring;
+  const releaseDeployment = snapshot?.release_deployment;
+  const releaseGate = snapshot?.release_gate;
+  const sourceCommit = String(snapshot?.source?.git_commit || "").toLowerCase();
+  return (
+    snapshot?.schema_version === SNAPSHOT_SCHEMA_VERSION &&
+    binding !== null &&
+    typeof binding === "object" &&
+    !Array.isArray(binding) &&
+    Object.keys(binding).length === PHASE_BINDING_KEYS.size &&
+    Object.keys(binding).every((key) => PHASE_BINDING_KEYS.has(key)) &&
+    binding.schema === "cogni.phase-evidence-monitor-binding.v1" &&
+    HEX_64.test(String(binding.audit_sha256 || "")) &&
+    binding.source_commit === sourceCommit &&
+    Number.isSafeInteger(binding.sequence) &&
+    binding.sequence > 0 &&
+    binding.sequence === monitoring?.sequence &&
+    HEX_64.test(String(binding.body_sha256 || "")) &&
+    binding.body_sha256 === monitoring?.body_sha256 &&
+    binding.deployment_id === releaseDeployment?.deployment_id &&
+    binding.deployment_url === releaseDeployment?.deployment_url &&
+    binding.release_gate_evidence_sha256 === releaseGate?.evidence_sha256 &&
+    binding.signature_verified === true &&
+    monitoring?.payload_signature_verified === true &&
+    ((snapshot?.phase_evidence_audit?.schema ===
+        "cogni.phase-evidence-audit.v2" &&
+      snapshot.phase_evidence_audit.source_commit === sourceCommit) ||
+      (snapshot?.phase_evidence_audit?.schema ===
+        "cogni.phase-evidence-audit-error.v2" &&
+        snapshot.phase_evidence_audit.coverage_status ===
+          "AUDIT_UNAVAILABLE" &&
+        snapshot.phase_evidence_audit.release_authority === false))
+  );
+}
 
 export function jsonResponse(value, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(value, null, 2), {
@@ -133,7 +397,8 @@ export function operationalSnapshotTrusted(snapshot, deployment) {
     ) &&
     releaseDeployment?.canonical_url === PRODUCTION_URL &&
     releaseDeployment?.source_commit === expectedCommit &&
-    releaseDeployment?.deployment_url === deploymentUrl
+    releaseDeployment?.deployment_url === deploymentUrl &&
+    phaseEvidenceBindingTrusted(snapshot)
   );
 }
 
@@ -221,6 +486,7 @@ export function bindDeploymentTruth(snapshot, deployment) {
       },
       alerts,
       deployment,
+      phase_evidence_binding: null,
     };
   }
   return response;
@@ -602,6 +868,8 @@ export function validateSnapshot(payload) {
       "release_gate",
       "release_deployment",
       "source",
+      "phase_evidence_audit",
+      "phase_evidence_binding",
     ]),
     "snapshot",
   );
@@ -609,7 +877,21 @@ export function validateSnapshot(payload) {
     throw new Error("snapshot.schema_version is unsupported");
   }
   const requiresBoundAttribution = payload.schema_version !== "1.0";
-  const requiresP0Evidence = payload.schema_version === SNAPSHOT_SCHEMA_VERSION;
+  const requiresP0Evidence = ["1.2", SNAPSHOT_SCHEMA_VERSION].includes(
+    payload.schema_version,
+  );
+  const requiresPhaseEvidence =
+    payload.schema_version === SNAPSHOT_SCHEMA_VERSION;
+  if (Object.hasOwn(payload, "phase_evidence_binding")) {
+    throw new Error(
+      "snapshot.phase_evidence_binding is server-derived and must not be published",
+    );
+  }
+  if (!requiresPhaseEvidence && payload.phase_evidence_audit !== undefined) {
+    throw new Error(
+      "snapshot.phase_evidence_audit requires snapshot schema 1.3",
+    );
+  }
   if (payload.system !== "Cogni-OS Operations") {
     throw new Error("snapshot.system is unsupported");
   }
@@ -1406,7 +1688,9 @@ export function validateSnapshot(payload) {
     throw new Error("snapshot.release_gate.reasons must be bounded strings");
   }
   if (requiresP0Evidence && !Object.hasOwn(payload, "release_deployment")) {
-    throw new Error("snapshot.release_deployment must be explicit in schema 1.2");
+    throw new Error(
+      "snapshot.release_deployment must be explicit in schema 1.2 or newer",
+    );
   }
   const releaseDeployment = payload.release_deployment;
   if (releaseDeployment !== null && releaseDeployment !== undefined) {
@@ -1469,8 +1753,8 @@ export function validateSnapshot(payload) {
     }
   }
   if (releaseGate.status === "PASS") {
-    if (!requiresP0Evidence) {
-      throw new Error("only snapshot schema 1.2 can assert PASS");
+    if (!requiresPhaseEvidence) {
+      throw new Error("only snapshot schema 1.3 can assert PASS");
     }
     if (
       !ledger.valid ||
@@ -1674,6 +1958,28 @@ export function validateSnapshot(payload) {
     }
   }
 
+  if (requiresPhaseEvidence) {
+    const validatedPhaseAudit = validatePhaseEvidenceAudit(
+      payload.phase_evidence_audit,
+      source.git_commit,
+    );
+    if (
+      releaseGate.status === "PASS" &&
+      (validatedPhaseAudit.schema !== "cogni.phase-evidence-audit.v2" ||
+        validatedPhaseAudit.coverage_status !== "SEMANTIC_COVERAGE_PASS" ||
+        validatedPhaseAudit.total_phases !== ROADMAP_PHASE_IDS.length ||
+        validatedPhaseAudit.validated_phases !== ROADMAP_PHASE_IDS.length ||
+        validatedPhaseAudit.progress_percent !== 100 ||
+        validatedPhaseAudit.release_authority !== false ||
+        validatedPhaseAudit.auditor_policy?.source_commit !==
+          source.git_commit)
+    ) {
+      throw new Error(
+        "PASS release gate requires a commit-bound 11/11 semantic phase audit",
+      );
+    }
+  }
+
   if (!Array.isArray(payload.ledger_events) || payload.ledger_events.length > 100) {
     throw new Error("snapshot.ledger_events must contain at most 100 items");
   }
@@ -1816,6 +2122,50 @@ export async function verifyStoredRow(row, secret) {
   return payload;
 }
 
+export async function phaseAuditSha256(audit) {
+  return sha256Hex(new TextEncoder().encode(canonicalJson(audit)));
+}
+
+export async function attachVerifiedPhaseEvidenceBinding(snapshot, row) {
+  const copy = JSON.parse(JSON.stringify(snapshot));
+  copy.phase_evidence_binding = null;
+  if (
+    copy?.schema_version !== SNAPSHOT_SCHEMA_VERSION ||
+    copy?.monitoring?.state !== "LIVE" ||
+    copy?.monitoring?.signature_verified !== true
+  ) {
+    return copy;
+  }
+  const sequence = Number(row?.sequence);
+  const bodySha256 = String(row?.body_sha256 || "").toLowerCase();
+  if (
+    !Number.isSafeInteger(sequence) ||
+    sequence < 1 ||
+    sequence !== copy.monitoring.sequence ||
+    !HEX_64.test(bodySha256) ||
+    bodySha256 !== copy.monitoring.body_sha256
+  ) {
+    throw new Error("verified phase binding envelope is inconsistent");
+  }
+  validatePhaseEvidenceAudit(
+    copy.phase_evidence_audit,
+    copy.source.git_commit,
+  );
+  copy.phase_evidence_binding = {
+    schema: "cogni.phase-evidence-monitor-binding.v1",
+    audit_sha256: await phaseAuditSha256(copy.phase_evidence_audit),
+    source_commit: copy.source.git_commit,
+    sequence,
+    body_sha256: bodySha256,
+    deployment_id: copy.release_deployment?.deployment_id ?? null,
+    deployment_url: copy.release_deployment?.deployment_url ?? null,
+    release_gate_evidence_sha256:
+      copy.release_gate?.evidence_sha256 ?? null,
+    signature_verified: true,
+  };
+  return copy;
+}
+
 export function assertFreshTimestamp(
   observedAt,
   now = Date.now(),
@@ -1937,6 +2287,7 @@ export function failClosedSnapshot(
       evidence_sha256: null,
     },
     release_deployment: null,
+    phase_evidence_binding: null,
     source: {
       git_commit: "unknown",
     },
@@ -1975,6 +2326,7 @@ export function withMonitoringEnvelope(payload, row, now = new Date()) {
     max_age_seconds: maxAge,
   };
   if (state === "STALE") {
+    copy.phase_evidence_binding = null;
     copy.tasks_summary = {
       total: 0,
       pending: 0,

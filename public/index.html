@@ -71,7 +71,7 @@
       </div>
       <div class="mission-progress">
         <div class="metric-line">
-            <span>Phase 1~11 신뢰 완료율</span>
+          <span>서명된 Phase 1~11 의미 증거 범위</span>
           <strong id="overall-progress-label">—</strong>
         </div>
         <div
@@ -85,6 +85,15 @@
         >
           <span id="overall-progress"></span>
         </div>
+        <dl class="phase-audit-facts" aria-label="Phase 의미 증거 감사 요약">
+          <div><dt>Validated / Total</dt><dd id="phase-audit-count">—</dd></div>
+          <div><dt>Audit SHA-256</dt><dd id="phase-audit-sha">—</dd></div>
+          <div><dt>Release authority</dt><dd id="phase-release-authority">—</dd></div>
+        </dl>
+        <p class="semantic-authority-note">
+          <strong>Semantic coverage is not release authority</strong>
+          — 의미론적 범위 검증 통과만으로 릴리스 권한이 생기지 않습니다.
+        </p>
         <p id="next-milestone">증거 수신 대기</p>
         <div class="release-gate state-no-go" id="release-gate">
           <span>Release Gate</span>

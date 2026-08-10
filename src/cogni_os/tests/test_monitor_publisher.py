@@ -12,7 +12,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -24,20 +24,26 @@ from cogni_os.tests._actor_capability_test_support import (
 from cogni_os.tests._isolation_test_support import (
     install_direct_isolation_fixture,
 )
+from cogni_os.phase_evidence import PHASE_EVIDENCE_REQUIREMENTS
+from cogni_os.lock import FileLock
 from cogni_os.trust_projection import task_trust_state
 from cogni_os.util import canonical_json
 from cogni_os.workspace import Workspace
+from cogni_os.roadmap import phase_contracts
 from scripts.publish_monitor_snapshot import (
+    PHASE_AUDIT_SCHEMA,
     PRODUCTION_RUNTIME_ENV,
     RELEASE_ARTIFACT_FILES,
     PublisherAlreadyRunning,
     PublisherInstanceLock,
+    _capture_tasks_and_phase_audit,
     _configure_production_runtime,
     _run_capped_command,
     _validate_ingest_acknowledgement,
     append_runtime_journal,
     audit_operational_evidence,
     build_snapshot,
+    collect_phase_evidence_audit,
     collect_gpus,
     collector_host_id,
     compute_backoff_seconds,
@@ -94,6 +100,78 @@ class _FakePublisherOpener:
 class MonitorPublisherTests(unittest.TestCase):
     def setUp(self) -> None:
         install_legacy_capability_fixture(self)
+
+    def _phase_audit_report(
+        self,
+        *,
+        coverage_status: str,
+        source_commit: str,
+        policy_commit: str,
+        policy_bound: bool = True,
+    ) -> dict[str, object]:
+        validated = 11 if coverage_status == "SEMANTIC_COVERAGE_PASS" else 0
+        policy_files = [
+            {
+                "path": "scripts/audit_phase_evidence.py",
+                "sha256": "d" * 64,
+            },
+            {
+                "path": "src/cogni_os/phase_evidence.py",
+                "sha256": "e" * 64,
+            },
+        ]
+        policy_document = {
+            "files": policy_files,
+            "source_commit": policy_commit,
+            "source_tree": "b" * 40,
+        }
+        policy_sha256 = hashlib.sha256(
+            json.dumps(
+                policy_document,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        phases: list[dict[str, object]] = []
+        digest_index = 1
+        for contract in phase_contracts():
+            phase_id = contract["id"]
+            count = len(PHASE_EVIDENCE_REQUIREMENTS[phase_id]) if validated == 11 else 0
+            artifacts = [f"{digest_index + offset:064x}" for offset in range(count)]
+            digest_index += count
+            outputs = [f"{digest_index + offset:064x}" for offset in range(count)]
+            digest_index += count
+            phases.append(
+                {
+                    "phase_id": phase_id,
+                    "coverage_status": (
+                        "SEMANTIC_COVERAGE_PASS" if validated == 11 else "NO_GO"
+                    ),
+                    "reasons": [] if validated == 11 else ["TEST_NO_GO"],
+                    "source_commit": source_commit if validated == 11 else None,
+                    "artifact_sha256": artifacts,
+                    "trusted_output_sha256": outputs,
+                    "release_authority": False,
+                }
+            )
+        return {
+            "schema": PHASE_AUDIT_SCHEMA,
+            "coverage_status": coverage_status,
+            "source_commit": source_commit,
+            "total_phases": 11,
+            "validated_phases": validated,
+            "progress_percent": 100.0 if validated == 11 else 0.0,
+            "phases": phases,
+            "release_authority": False,
+            "auditor_policy": {
+                "source_commit": policy_commit,
+                "source_tree": "b" * 40,
+                "current_source_commit_bound": policy_bound,
+                "policy_sha256": policy_sha256,
+                "files": policy_files,
+            },
+        }
 
     def _gpu_boundary_environment(
         self,
@@ -594,6 +672,415 @@ class MonitorPublisherTests(unittest.TestCase):
         self.assertTrue(
             all(phase["state"] == "missing" for phase in snapshot["roadmap"]["phases"])
         )
+        self.assertEqual(snapshot["schema_version"], "1.3")
+        self.assertIn("phase_evidence_audit", snapshot)
+        self.assertNotIn("phase_evidence_binding", snapshot)
+
+    def test_phase_auditor_accepts_exit_zero_and_one_reports(self) -> None:
+        workspace_commit = "a" * 40
+        policy_commit = "b" * 40
+        source_state = {
+            "workspace": {
+                "commit": workspace_commit,
+                "clean": True,
+                "fingerprint": "1" * 64,
+                "operational_fingerprint": "2" * 64,
+                "unclassified_fingerprint": "3" * 64,
+            },
+            "collector": {
+                "commit": policy_commit,
+                "clean": True,
+                "fingerprint": "4" * 64,
+                "operational_fingerprint": "5" * 64,
+                "unclassified_fingerprint": "6" * 64,
+            },
+        }
+        for exit_code, coverage in (
+            (0, "SEMANTIC_COVERAGE_PASS"),
+            (1, "NO_GO"),
+        ):
+            with self.subTest(exit_code=exit_code):
+                report = self._phase_audit_report(
+                    coverage_status=coverage,
+                    source_commit=workspace_commit,
+                    policy_commit=workspace_commit,
+                )
+                if exit_code == 0:
+                    command_result = SimpleNamespace(stdout=json.dumps(report))
+                else:
+                    command_result = subprocess.CalledProcessError(
+                        exit_code,
+                        [sys.executable],
+                        output=json.dumps(report),
+                        stderr="",
+                    )
+                with patch(
+                    "scripts.publish_monitor_snapshot._phase_audit_source_state",
+                    return_value=source_state,
+                ), patch(
+                    "scripts.publish_monitor_snapshot._run_capped_command",
+                    side_effect=(
+                        None
+                        if exit_code == 0
+                        else command_result
+                    ),
+                    return_value=(command_result if exit_code == 0 else None),
+                ), patch(
+                    "scripts.publish_monitor_snapshot._bounded_file_sha256",
+                    return_value="7" * 64,
+                ), patch(
+                    "scripts.publish_monitor_snapshot.git_commit",
+                    return_value=policy_commit,
+                ):
+                    observed = collect_phase_evidence_audit(
+                        ROOT,
+                        expected_commit=workspace_commit,
+                    )
+                self.assertEqual(observed["coverage_status"], coverage)
+                self.assertFalse(observed["release_authority"])
+
+    def test_phase_auditor_bounds_exit_two_malformed_timeout_and_dirty_policy(self) -> None:
+        workspace_commit = "a" * 40
+        policy_commit = "b" * 40
+        source_state = {
+            "workspace": {
+                "commit": workspace_commit,
+                "clean": True,
+                "fingerprint": "1" * 64,
+                "operational_fingerprint": "2" * 64,
+                "unclassified_fingerprint": "3" * 64,
+            },
+            "collector": {
+                "commit": policy_commit,
+                "clean": True,
+                "fingerprint": "4" * 64,
+                "operational_fingerprint": "5" * 64,
+                "unclassified_fingerprint": "6" * 64,
+            },
+        }
+        dirty = self._phase_audit_report(
+            coverage_status="SEMANTIC_COVERAGE_PASS",
+            source_commit=workspace_commit,
+            policy_commit=workspace_commit,
+            policy_bound=False,
+        )
+        policy_mismatch = self._phase_audit_report(
+            coverage_status="SEMANTIC_COVERAGE_PASS",
+            source_commit=workspace_commit,
+            policy_commit=policy_commit,
+        )
+        duplicate_digest = self._phase_audit_report(
+            coverage_status="SEMANTIC_COVERAGE_PASS",
+            source_commit=workspace_commit,
+            policy_commit=workspace_commit,
+        )
+        duplicate_digest["phases"][1]["artifact_sha256"][0] = duplicate_digest[
+            "phases"
+        ][0]["artifact_sha256"][0]
+        reversed_policy = self._phase_audit_report(
+            coverage_status="SEMANTIC_COVERAGE_PASS",
+            source_commit=workspace_commit,
+            policy_commit=workspace_commit,
+        )
+        reversed_policy["auditor_policy"]["files"].reverse()
+        policy_document = {
+            "files": reversed_policy["auditor_policy"]["files"],
+            "source_commit": workspace_commit,
+            "source_tree": "b" * 40,
+        }
+        reversed_policy["auditor_policy"]["policy_sha256"] = hashlib.sha256(
+            json.dumps(
+                policy_document,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        path_canary = r"C:\private\operator\secret-audit-path"
+        cases = {
+            "exit_two": subprocess.CalledProcessError(
+                2, [sys.executable], output='{"error":"private detail"}', stderr=""
+            ),
+            "malformed": SimpleNamespace(stdout="not-json"),
+            "timeout": subprocess.TimeoutExpired([sys.executable], 30),
+            "dirty_policy": SimpleNamespace(stdout=json.dumps(dirty)),
+            "policy_commit_mismatch": SimpleNamespace(
+                stdout=json.dumps(policy_mismatch)
+            ),
+            "duplicate_digest": SimpleNamespace(stdout=json.dumps(duplicate_digest)),
+            "reversed_policy": SimpleNamespace(stdout=json.dumps(reversed_policy)),
+            "execution_error": RuntimeError(path_canary),
+        }
+        expected_codes = {
+            "exit_two": "EXIT_2",
+            "malformed": "MALFORMED_OUTPUT",
+            "timeout": "TIMEOUT",
+            "dirty_policy": "MALFORMED_OUTPUT",
+            "policy_commit_mismatch": "MALFORMED_OUTPUT",
+            "duplicate_digest": "MALFORMED_OUTPUT",
+            "reversed_policy": "MALFORMED_OUTPUT",
+            "execution_error": "EXECUTION_ERROR",
+        }
+        for name, result in cases.items():
+            with self.subTest(name=name), patch(
+                "scripts.publish_monitor_snapshot._phase_audit_source_state",
+                return_value=source_state,
+            ), patch(
+                "scripts.publish_monitor_snapshot._run_capped_command",
+                side_effect=(result if isinstance(result, BaseException) else None),
+                return_value=(None if isinstance(result, BaseException) else result),
+            ), patch(
+                "scripts.publish_monitor_snapshot._bounded_file_sha256",
+                return_value="7" * 64,
+            ), patch(
+                "scripts.publish_monitor_snapshot.git_commit",
+                return_value=policy_commit,
+            ):
+                observed = collect_phase_evidence_audit(
+                    ROOT,
+                    expected_commit=workspace_commit,
+                )
+            self.assertEqual(observed["coverage_status"], "AUDIT_UNAVAILABLE")
+            self.assertEqual(observed["error"]["code"], expected_codes[name])
+            self.assertLessEqual(len(observed["error"]["message"]), 256)
+            self.assertFalse(observed["release_authority"])
+            self.assertNotIn(path_canary, json.dumps(observed))
+
+    def test_phase_audit_no_go_forces_release_gate_no_go(self) -> None:
+        workspace_commit = "a" * 40
+        policy_commit = "b" * 40
+        audit = self._phase_audit_report(
+            coverage_status="NO_GO",
+            source_commit=workspace_commit,
+            policy_commit=workspace_commit,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Workspace.initialize(
+                Path(temporary), name="Phase audit gate", preset=None
+            )
+            with patch(
+                "scripts.publish_monitor_snapshot.release_gate_status",
+                return_value={"status": "PASS", "contract_sha256": "f" * 64},
+            ), patch(
+                "scripts.publish_monitor_snapshot.git_commit",
+                return_value=policy_commit,
+            ):
+                gate = release_gate(
+                    workspace,
+                    workspace_commit,
+                    [],
+                    {"valid": True, "signed": True},
+                    {"clean": True},
+                    {"valid": True},
+                    [],
+                    gpu_telemetry_state="MEASURED",
+                    gpu_measurement={"measurement_complete": True},
+                    release_deployment={"bound": True},
+                    collector_commit=workspace_commit,
+                    collector_tree={"clean": True},
+                    operational_state={"valid": True},
+                    phase_evidence_audit=audit,
+                )
+        self.assertEqual(gate["status"], "NO_GO")
+        self.assertTrue(any("Phase 1-11" in reason for reason in gate["reasons"]))
+
+    def test_phase_auditor_rejects_source_state_change(self) -> None:
+        workspace_commit = "a" * 40
+        policy_commit = "b" * 40
+        before = {
+            "workspace": {
+                "commit": workspace_commit,
+                "clean": True,
+                "fingerprint": "1" * 64,
+                "operational_fingerprint": "2" * 64,
+                "unclassified_fingerprint": "3" * 64,
+            },
+            "collector": {
+                "commit": policy_commit,
+                "clean": True,
+                "fingerprint": "4" * 64,
+                "operational_fingerprint": "5" * 64,
+                "unclassified_fingerprint": "6" * 64,
+            },
+        }
+        after = deepcopy(before)
+        after["workspace"]["operational_fingerprint"] = "9" * 64
+        report = self._phase_audit_report(
+            coverage_status="SEMANTIC_COVERAGE_PASS",
+            source_commit=workspace_commit,
+            policy_commit=workspace_commit,
+        )
+        with patch(
+            "scripts.publish_monitor_snapshot._phase_audit_source_state",
+            side_effect=[before, after],
+        ), patch(
+            "scripts.publish_monitor_snapshot._run_capped_command",
+            return_value=SimpleNamespace(stdout=json.dumps(report)),
+        ), patch(
+            "scripts.publish_monitor_snapshot._bounded_file_sha256",
+            return_value="7" * 64,
+        ):
+            observed = collect_phase_evidence_audit(
+                ROOT,
+                expected_commit=workspace_commit,
+            )
+        self.assertEqual(observed["coverage_status"], "AUDIT_UNAVAILABLE")
+        self.assertEqual(observed["error"]["code"], "SOURCE_STATE_CHANGED")
+
+    def test_task_projection_and_phase_audit_share_one_stable_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tasks_dir = root / "tasks"
+            control_dir = root / ".cogni"
+            tasks_dir.mkdir()
+            (tasks_dir / "P01-TRUTH.json").write_text("{}", encoding="utf-8")
+            workspace = SimpleNamespace(
+                root=root,
+                tasks_dir=tasks_dir,
+                control_dir=control_dir,
+                list_tasks=Mock(
+                    side_effect=[
+                        [{"id": "P01-TRUTH", "state": "pending"}],
+                        [{"id": "P01-TRUTH", "state": "submitted"}],
+                    ]
+                ),
+            )
+            with patch(
+                "scripts.publish_monitor_snapshot.collect_phase_evidence_audit",
+                return_value={
+                    "schema": PHASE_AUDIT_SCHEMA,
+                    "coverage_status": "NO_GO",
+                    "release_authority": False,
+                },
+            ):
+                tasks, audit = _capture_tasks_and_phase_audit(
+                    workspace,
+                    expected_commit="a" * 40,
+                )
+        self.assertEqual(tasks[0]["state"], "submitted")
+        self.assertEqual(audit["coverage_status"], "AUDIT_UNAVAILABLE")
+        self.assertEqual(audit["error"]["code"], "TASK_INVENTORY_CHANGED")
+
+    def test_phase_audit_does_not_hold_task_heartbeat_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tasks_dir = root / "tasks"
+            control_dir = root / ".cogni"
+            tasks_dir.mkdir()
+            (tasks_dir / "P01-TRUTH.json").write_text("{}", encoding="utf-8")
+            tasks = [{"id": "P01-TRUTH", "state": "running"}]
+            workspace = SimpleNamespace(
+                root=root,
+                tasks_dir=tasks_dir,
+                control_dir=control_dir,
+                list_tasks=Mock(side_effect=[deepcopy(tasks), deepcopy(tasks)]),
+            )
+            heartbeat_acquired = False
+
+            def audit_without_blocking_heartbeat(*args, **kwargs):
+                nonlocal heartbeat_acquired
+                with FileLock(
+                    control_dir / "locks" / "tasks" / "P01-TRUTH.lock"
+                ):
+                    heartbeat_acquired = True
+                return {
+                    "schema": PHASE_AUDIT_SCHEMA,
+                    "coverage_status": "NO_GO",
+                    "release_authority": False,
+                }
+
+            with patch(
+                "scripts.publish_monitor_snapshot.collect_phase_evidence_audit",
+                side_effect=audit_without_blocking_heartbeat,
+            ):
+                observed_tasks, audit = _capture_tasks_and_phase_audit(
+                    workspace,
+                    expected_commit="a" * 40,
+                )
+        self.assertTrue(heartbeat_acquired)
+        self.assertEqual(observed_tasks, tasks)
+        self.assertEqual(audit["coverage_status"], "NO_GO")
+
+    def test_phase_audit_does_not_hold_task_creation_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tasks_dir = root / "tasks"
+            control_dir = root / ".cogni"
+            tasks_dir.mkdir()
+            (tasks_dir / "P01-TRUTH.json").write_text("{}", encoding="utf-8")
+            tasks = [{"id": "P01-TRUTH", "state": "running"}]
+            workspace = SimpleNamespace(
+                root=root,
+                tasks_dir=tasks_dir,
+                control_dir=control_dir,
+                list_tasks=Mock(side_effect=[deepcopy(tasks), deepcopy(tasks)]),
+            )
+            creation_lock_acquired = False
+
+            def audit_without_blocking_task_creation(*args, **kwargs):
+                nonlocal creation_lock_acquired
+                with FileLock(
+                    control_dir / "locks" / "task-create.lock",
+                    timeout_seconds=0.2,
+                    stale_seconds=60.0,
+                ):
+                    creation_lock_acquired = True
+                return {
+                    "schema": PHASE_AUDIT_SCHEMA,
+                    "coverage_status": "NO_GO",
+                    "release_authority": False,
+                }
+
+            with patch(
+                "scripts.publish_monitor_snapshot.collect_phase_evidence_audit",
+                side_effect=audit_without_blocking_task_creation,
+            ):
+                observed_tasks, audit = _capture_tasks_and_phase_audit(
+                    workspace,
+                    expected_commit="a" * 40,
+                )
+        self.assertTrue(creation_lock_acquired)
+        self.assertEqual(observed_tasks, tasks)
+        self.assertEqual(audit["coverage_status"], "NO_GO")
+
+    def test_task_change_before_release_gate_forces_audit_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Workspace.initialize(
+                Path(temporary), name="Task inventory gate", preset=None
+            )
+            workspace.add_task(
+                actor="codex",
+                task_id="T-CHANGE",
+                title="Changed task",
+                description="Change during snapshot",
+                owner="codex",
+            )
+            changed = workspace.list_tasks()
+            workspace.list_tasks = Mock(side_effect=[[], [], *([changed] * 8)])
+            with patch(
+                "scripts.publish_monitor_snapshot.collect_phase_evidence_audit",
+                return_value={
+                    "schema": PHASE_AUDIT_SCHEMA,
+                    "coverage_status": "SEMANTIC_COVERAGE_PASS",
+                    "release_authority": False,
+                },
+            ):
+                snapshot = build_snapshot(
+                    workspace,
+                    sequence=1,
+                    include_gpu=False,
+                )
+        self.assertEqual(
+            snapshot["phase_evidence_audit"]["coverage_status"],
+            "AUDIT_UNAVAILABLE",
+        )
+        self.assertEqual(
+            snapshot["phase_evidence_audit"]["error"]["code"],
+            "TASK_INVENTORY_CHANGED",
+        )
+        self.assertEqual(snapshot["release_gate"]["status"], "NO_GO")
+        self.assertEqual(len(snapshot["tasks"]), 1)
+        self.assertEqual(snapshot["tasks"][0]["raw_state"], "pending")
 
     def test_public_snapshot_excludes_customer_task_and_secret_canaries(self) -> None:
         customer_canary = "PII-CUSTOMER-ALPHA-99117"

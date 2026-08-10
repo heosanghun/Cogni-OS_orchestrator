@@ -20,6 +20,19 @@ const STATE_TITLES = {
   STORAGE_ERROR: "모니터링 저장소를 읽을 수 없습니다.",
   FETCH_ERROR: "공개 모니터링 API에 연결할 수 없습니다.",
 };
+const PHASE_IDS = Object.freeze([
+  "P01-TRUTH",
+  "P02-ORCHESTRATION",
+  "P03-EVIDENCE",
+  "P04-WORLD",
+  "P05-FINANCE",
+  "P06-TWIN",
+  "P07-WORKSPACE",
+  "P08-CORE",
+  "P09-HARNESS",
+  "P10-COGNIBOARD",
+  "P11-RELEASE",
+]);
 
 const byId = (id) => document.getElementById(id);
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -51,6 +64,11 @@ const formatTime = (value) => {
 };
 const shortHash = (value) =>
   typeof value === "string" && value.length >= 12 ? `${value.slice(0, 12)}…` : "—";
+const isSha256 = (value) => /^[0-9a-f]{64}$/.test(String(value || ""));
+const hasOwn = (value, key) =>
+  value !== null &&
+  typeof value === "object" &&
+  Object.prototype.hasOwnProperty.call(value, key);
 const urlHost = (value) => {
   try {
     return new URL(value).hostname || "—";
@@ -62,6 +80,31 @@ const urlHost = (value) => {
 let latestSnapshot = null;
 let latestHistory = [];
 let refreshInFlight = false;
+
+function phaseEvidenceBindingVerified(data) {
+  const binding = data?.phase_evidence_binding;
+  const monitoring = data?.monitoring;
+  const sourceCommit = String(data?.source?.git_commit || "").toLowerCase();
+  const releaseDeployment = data?.release_deployment;
+  const releaseEvidence = data?.release_gate?.evidence_sha256 ?? null;
+  return (
+    binding?.schema === "cogni.phase-evidence-monitor-binding.v1" &&
+    isSha256(binding.audit_sha256) &&
+    binding.source_commit === sourceCommit &&
+    Number.isSafeInteger(binding.sequence) &&
+    binding.sequence > 0 &&
+    binding.sequence === monitoring?.sequence &&
+    isSha256(binding.body_sha256) &&
+    binding.body_sha256 === monitoring?.body_sha256 &&
+    binding.deployment_id === releaseDeployment?.deployment_id &&
+    binding.deployment_url === releaseDeployment?.deployment_url &&
+    hasOwn(binding, "release_gate_evidence_sha256") &&
+    binding.release_gate_evidence_sha256 === releaseEvidence &&
+    binding.signature_verified === true &&
+    monitoring?.payload_signature_verified === true &&
+    monitoring?.signature_verified === true
+  );
+}
 
 function isLiveVerified(data) {
   const sourceCommit = String(data?.source?.git_commit || "").toLowerCase();
@@ -111,8 +154,88 @@ function isLiveVerified(data) {
     data?.release_deployment?.canonical_url ===
       "https://cogni-os-orchestrator.pages.dev" &&
     data?.release_deployment?.source_commit === sourceCommit &&
-    data?.release_deployment?.deployment_url === data?.deployment?.deployment_url
+    data?.release_deployment?.deployment_url === data?.deployment?.deployment_url &&
+    phaseEvidenceBindingVerified(data)
   );
+}
+
+function signedPhaseAudit(data) {
+  if (!isLiveVerified(data)) return null;
+  const audit = data?.phase_evidence_audit;
+  const total = audit?.total_phases;
+  const validated = audit?.validated_phases;
+  const progress = finite(audit?.progress_percent);
+  const phases = audit?.phases;
+  const phaseInventoryValid =
+    Array.isArray(phases) &&
+    phases.length === PHASE_IDS.length &&
+    phases.every((phase, index) => {
+      const status = phase?.coverage_status;
+      return (
+        phase?.phase_id === PHASE_IDS[index] &&
+        ["SEMANTIC_COVERAGE_PASS", "NO_GO"].includes(status) &&
+        phase?.release_authority === false &&
+        (status !== "SEMANTIC_COVERAGE_PASS" ||
+          phase?.source_commit === data.phase_evidence_binding.source_commit)
+      );
+    });
+  const observedValidated = phaseInventoryValid
+    ? phases.filter(
+        (phase) => phase.coverage_status === "SEMANTIC_COVERAGE_PASS",
+      ).length
+    : -1;
+  const expectedCoverage =
+    observedValidated === PHASE_IDS.length ? "SEMANTIC_COVERAGE_PASS" : "NO_GO";
+  const expectedProgress =
+    observedValidated < 0
+      ? null
+      : Math.round((observedValidated / PHASE_IDS.length) * 1000) / 10;
+  if (
+    audit?.schema !== "cogni.phase-evidence-audit.v2" ||
+    audit?.source_commit !== data.phase_evidence_binding.source_commit ||
+    audit?.release_authority !== false ||
+    !Number.isSafeInteger(total) ||
+    total !== PHASE_IDS.length ||
+    !Number.isSafeInteger(validated) ||
+    validated !== observedValidated ||
+    audit?.coverage_status !== expectedCoverage ||
+    progress === null ||
+    progress !== expectedProgress ||
+    !phaseInventoryValid
+  ) {
+    return null;
+  }
+  return audit;
+}
+
+function releasePassVerified(data) {
+  const audit = signedPhaseAudit(data);
+  const sourceCommit = data?.phase_evidence_binding?.source_commit;
+  const roadmap = data?.roadmap;
+  const roadmapPhases = asArray(roadmap?.phases);
+  const phaseAuditPassed =
+    audit?.coverage_status === "SEMANTIC_COVERAGE_PASS" &&
+    audit.total_phases === 11 &&
+    audit.validated_phases === 11 &&
+    audit.progress_percent === 100 &&
+    audit.phases.every(
+      (phase) =>
+        phase?.coverage_status === "SEMANTIC_COVERAGE_PASS" &&
+        phase?.source_commit === sourceCommit &&
+        phase?.release_authority === false,
+    );
+  const releaseEvidence = data?.release_gate?.evidence_sha256;
+  const gatePassed =
+    data?.release_gate?.status === "PASS" &&
+    isSha256(releaseEvidence) &&
+    data?.phase_evidence_binding?.release_gate_evidence_sha256 === releaseEvidence;
+  const roadmapPassed =
+    roadmap?.total === 11 &&
+    roadmap?.trusted_complete === 11 &&
+    roadmap?.current_release_validated === 11 &&
+    roadmapPhases.length === 11 &&
+    roadmapPhases.every((phase) => phase?.current_release_validated === true);
+  return Boolean(phaseAuditPassed && gatePassed && roadmapPassed);
 }
 
 function evidenceSafeView(raw) {
@@ -278,21 +401,46 @@ function renderTrust(data) {
 
 function renderMission(data) {
   const roadmap = data.roadmap || {};
-  const percentage = finite(roadmap.progress_percent);
+  const audit = signedPhaseAudit(data);
+  const percentage = audit ? finite(audit.progress_percent) : null;
   text("overall-progress-label", formatPercent(percentage));
+  text(
+    "phase-audit-count",
+    audit ? `${audit.validated_phases} / ${audit.total_phases}` : null,
+  );
+  text(
+    "phase-audit-sha",
+    audit ? data.phase_evidence_binding.audit_sha256 : null,
+  );
+  text("phase-release-authority", audit ? "false" : null);
   const bar = byId("overall-progress");
   const track = byId("overall-progress-track");
   const width = percentage === null ? 0 : Math.min(100, Math.max(0, percentage));
   if (bar) bar.style.width = `${width}%`;
-  if (track) track.setAttribute("aria-valuenow", String(width));
+  if (track) {
+    if (percentage === null) {
+      track.removeAttribute("aria-valuenow");
+      track.setAttribute("aria-valuetext", "검증된 Phase 의미 증거 없음");
+    } else {
+      track.setAttribute("aria-valuenow", String(width));
+      track.removeAttribute("aria-valuetext");
+    }
+  }
 
-  const gate = isLiveVerified(data)
-    ? data.release_gate || { status: "NO_GO", reasons: ["증거 없음"] }
+  const releasePass = releasePassVerified(data);
+  const rawReasons = asArray(data.release_gate?.reasons);
+  const gate = releasePass
+    ? data.release_gate
     : {
         status: "NO_GO",
-        reasons: [
-          data.monitoring?.reason || "최신 서명 운영 증거를 사용할 수 없습니다.",
-        ],
+        reasons: isLiveVerified(data)
+          ? rawReasons.length
+            ? rawReasons
+            : ["의미 증거·릴리스 게이트·현재 배포 로드맵의 11/11 교차 검증이 필요합니다."]
+          : [
+              data.monitoring?.reason ||
+                "최신 서명 운영 증거를 사용할 수 없습니다.",
+            ],
       };
   text("release-gate-status", gate.status || "NO_GO");
   const gateNode = byId("release-gate");
@@ -311,6 +459,16 @@ function renderMission(data) {
         ? `${nextPhase.id} · ${nextPhase.title} — ${nextPhase.state}`
         : reasons[0] || "릴리스 증거가 부족합니다.",
   );
+}
+
+if (globalThis.__COGNI_EVIDENCE_UI_TEST__ === true) {
+  globalThis.__COGNI_EVIDENCE_UI_TEST_API__ = Object.freeze({
+    isLiveVerified,
+    phaseEvidenceBindingVerified,
+    releasePassVerified,
+    renderMission,
+    signedPhaseAudit,
+  });
 }
 
 function renderKpis(data) {

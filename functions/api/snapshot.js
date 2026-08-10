@@ -1,5 +1,6 @@
 import {
   DEFAULT_MAX_AGE_SECONDS,
+  attachVerifiedPhaseEvidenceBinding,
   bindDeploymentTruth,
   deploymentAttribution,
   errorResponse,
@@ -103,12 +104,15 @@ export async function onRequest(context) {
     );
   }
 
-  const snapshot = withMonitoringEnvelope(payload, {
-    ...row,
-    max_age_seconds: Number(
-      env.MAX_SNAPSHOT_AGE_SECONDS || DEFAULT_MAX_AGE_SECONDS,
-    ),
-  });
+  const snapshot = await attachVerifiedPhaseEvidenceBinding(
+    withMonitoringEnvelope(payload, {
+      ...row,
+      max_age_seconds: Number(
+        env.MAX_SNAPSHOT_AGE_SECONDS || DEFAULT_MAX_AGE_SECONDS,
+      ),
+    }),
+    row,
+  );
   const responseSnapshot = bindDeploymentTruth(
     snapshot,
     deploymentAttribution(env),

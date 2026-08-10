@@ -461,6 +461,7 @@ function Get-CollectorCodeManifest {
     $totalBytes = [int64]0
     $paths = [Collections.Generic.List[string]]::new()
     foreach ($name in @(
+        'audit_phase_evidence.py',
         'publisher_binary_trust.ps1',
         'publisher_production_preflight.ps1',
         'run_monitor_publisher.ps1',

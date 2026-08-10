@@ -37,7 +37,7 @@ function Assert-CogniPublisherProductionHealth {
         $Health.checks.release_attribution_ready -ne $false -or
         [string]$Health.checks.release_evidence_state -ne
             'API_EVIDENCE_REQUIRED' -or
-        [string]$Health.checks.minimum_release_snapshot_schema -ne '1.2'
+        [string]$Health.checks.minimum_release_snapshot_schema -ne '1.3'
     ) {
         throw 'Publisher preflight health trust checks are not release-ready.'
     }
@@ -76,7 +76,7 @@ function Assert-CogniPublisherProductionHealth {
     return [pscustomobject]@{
         source_commit = $commit
         deployment_url = $direct.AbsoluteUri.TrimEnd('/')
-        minimum_release_snapshot_schema = '1.2'
+        minimum_release_snapshot_schema = '1.3'
         operational_ingest = 'READY'
         release_readiness = 'NO_GO_API_EVIDENCE_REQUIRED'
     }

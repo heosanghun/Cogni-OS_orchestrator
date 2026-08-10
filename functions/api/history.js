@@ -1,5 +1,6 @@
 import {
   DEFAULT_MAX_AGE_SECONDS,
+  attachVerifiedPhaseEvidenceBinding,
   bindDeploymentTruth,
   deploymentAttribution,
   errorResponse,
@@ -17,31 +18,49 @@ function boundedLimit(request) {
   return Math.min(240, Math.max(1, requested));
 }
 
-async function projectHistoryRow(row, hmacKeys, deployment, maxAgeSeconds, now) {
+export async function projectHistoryRow(
+  row,
+  hmacKeys,
+  deployment,
+  maxAgeSeconds,
+  now,
+) {
   const secret = hmacKeys.get(row.key_id);
   if (!secret) {
     throw new Error("stored snapshot publisher key is not active");
   }
   const payload = await verifyStoredRow(row, secret);
-  const bound = bindDeploymentTruth(
+  const enveloped = await attachVerifiedPhaseEvidenceBinding(
     withMonitoringEnvelope(
       payload,
       { ...row, max_age_seconds: maxAgeSeconds },
       now,
     ),
+    row,
+  );
+  const bound = bindDeploymentTruth(
+    enveloped,
     deployment,
   );
   if (!operationalSnapshotTrusted(bound, deployment)) return null;
+  const binding = bound.phase_evidence_binding;
   return {
     sequence: Number(row.sequence),
     observed_at: row.observed_at,
     received_at: row.received_at,
     body_sha256: row.body_sha256,
-    tasks_summary: payload.tasks_summary || {},
-    roadmap: payload.roadmap || {},
-    gpus: payload.gpus || [],
-    resources: payload.resources || {},
-    release_gate: payload.release_gate || { status: "NO_GO" },
+    source_commit: binding.source_commit,
+    deployment_id: binding.deployment_id,
+    deployment_url: binding.deployment_url,
+    signature_verified: binding.signature_verified,
+    phase_evidence_audit_sha256: binding.audit_sha256,
+    release_gate_evidence_sha256:
+      binding.release_gate_evidence_sha256,
+    tasks_summary: bound.tasks_summary || {},
+    roadmap: bound.roadmap || {},
+    gpus: bound.gpus || [],
+    resources: bound.resources || {},
+    release_gate: bound.release_gate || { status: "NO_GO" },
   };
 }
 

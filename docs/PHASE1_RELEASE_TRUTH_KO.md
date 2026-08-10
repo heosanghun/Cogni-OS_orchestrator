@@ -75,7 +75,7 @@ production 증거 수집은 Cloudflare API와 고정 production endpoint에 대�
 고유 direct URL이 health/snapshot의 서버 소유 build attribution에 정확히
 결합되어야 하며, commit만 같고 deployment가 다르면 검증은 실패합니다.
 
-`/api/health`의 준비 상태는 두 층으로 분리합니다. D1 schema 1.2,
+`/api/health`의 준비 상태는 두 층으로 분리합니다. snapshot schema 1.3,
 keyring, 불변 빌드 commit이 결합되어 `operational_ingest_ready=true`인 것은
 publisher가 증거 수집을 시작할 수 있다는 의미입니다. 이것만으로 릴리스
 귀속을 자체 승인하지 않습니다. 서버 health는
@@ -121,7 +121,7 @@ npx wrangler d1 migrations apply cogni-os-monitoring --remote
 npx wrangler d1 execute cogni-os-monitoring --remote `
   --command "PRAGMA table_info(monitor_schema_floors);"
 # 그 다음 main Pages 배포 후 /api/health의 BUILD_BOUND, source commit,
-# minimum_release_snapshot_schema=1.2를 확인합니다.
+# minimum_release_snapshot_schema=1.3을 확인합니다.
 ```
 
 ```powershell

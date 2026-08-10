@@ -139,6 +139,45 @@ main {
   display: block; height: 100%; background: linear-gradient(90deg, #6366f1, #38bdf8); border-radius: 5px; transition: width 0.6s ease;
 }
 
+.phase-audit-facts {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.phase-audit-facts div {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--line);
+}
+
+.phase-audit-facts dt {
+  color: var(--soft);
+  font-size: 11px;
+}
+
+.phase-audit-facts dd {
+  color: var(--ink);
+  font: 600 11px/1.4 "Cascadia Code", ui-monospace, monospace;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.semantic-authority-note {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.semantic-authority-note strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--amber);
+  font-weight: 650;
+}
+
 /* KPI Grid */
 .kpi-grid {
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px;

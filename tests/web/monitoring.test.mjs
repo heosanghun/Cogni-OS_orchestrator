@@ -3,16 +3,21 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { onRequest as health } from "../../functions/api/health.js";
-import { onRequest as history } from "../../functions/api/history.js";
+import {
+  onRequest as history,
+  projectHistoryRow,
+} from "../../functions/api/history.js";
 import { onRequest as ingest } from "../../functions/api/ingest.js";
 import { onRequest as snapshot } from "../../functions/api/snapshot.js";
 import {
   assertFreshTimestamp,
+  attachVerifiedPhaseEvidenceBinding,
   bindDeploymentTruth,
   deploymentAttribution,
   failClosedSnapshot,
   hmacHex,
   operationalSnapshotTrusted,
+  phaseAuditSha256,
   sha256Hex,
   signatureMessage,
   validateSnapshot,
@@ -232,6 +237,127 @@ function payload(overrides = {}) {
   };
 }
 
+function phaseAuditFixture(sourceCommit = "a".repeat(40)) {
+  let digestIndex = 1;
+  const nextDigest = () => (digestIndex++).toString(16).padStart(64, "0");
+  const counts = new Map([
+    ["P01-TRUTH", 3],
+    ["P02-ORCHESTRATION", 4],
+    ["P03-EVIDENCE", 3],
+    ["P04-WORLD", 3],
+    ["P05-FINANCE", 3],
+    ["P06-TWIN", 3],
+    ["P07-WORKSPACE", 3],
+    ["P08-CORE", 3],
+    ["P09-HARNESS", 3],
+    ["P10-COGNIBOARD", 3],
+    ["P11-RELEASE", 4],
+  ]);
+  return {
+    schema: "cogni.phase-evidence-audit.v2",
+    coverage_status: "SEMANTIC_COVERAGE_PASS",
+    source_commit: sourceCommit,
+    total_phases: ROADMAP_PHASE_IDS.length,
+    validated_phases: ROADMAP_PHASE_IDS.length,
+    progress_percent: 100,
+    phases: ROADMAP_PHASE_IDS.map((phaseId) => ({
+      phase_id: phaseId,
+      coverage_status: "SEMANTIC_COVERAGE_PASS",
+      reasons: [],
+      source_commit: sourceCommit,
+      artifact_sha256: Array.from(
+        { length: counts.get(phaseId) },
+        nextDigest,
+      ),
+      trusted_output_sha256: Array.from(
+        { length: counts.get(phaseId) },
+        nextDigest,
+      ),
+      release_authority: false,
+    })),
+    release_authority: false,
+    auditor_policy: {
+      source_commit: sourceCommit,
+      source_tree: "b".repeat(40),
+      current_source_commit_bound: true,
+      policy_sha256: nextDigest(),
+      files: [
+        {
+          path: "scripts/audit_phase_evidence.py",
+          sha256: nextDigest(),
+        },
+        {
+          path: "src/cogni_os/phase_evidence.py",
+          sha256: nextDigest(),
+        },
+      ],
+    },
+  };
+}
+
+function upgradeToPhaseEvidenceSchema(value) {
+  value.schema_version = "1.3";
+  value.phase_evidence_audit = phaseAuditFixture(value.source.git_commit);
+  return value;
+}
+
+function releasePassPayload(overrides = {}) {
+  const observedAt = overrides.observed_at || new Date().toISOString();
+  const sourceCommit = "a".repeat(40);
+  const evidence = "b".repeat(64);
+  const tasks = ROADMAP_PHASE_IDS.map((id) => ({
+    id,
+    title: "Operational task",
+    owner: "principal-0123456789abcdef",
+    state: "verified",
+    historical_state: "verified",
+    historical_trusted: true,
+    verified_source_commit: sourceCommit,
+    current_release_state: "verified",
+    current_release_validated: true,
+    progress: 100,
+    updated_at: observedAt,
+  }));
+  const value = payload({
+    ...overrides,
+    observed_at: observedAt,
+    tasks,
+    roadmap: roadmapFixture(tasks),
+  });
+  value.tasks_summary = {
+    total: tasks.length,
+    pending: 0,
+    claimed: 0,
+    running: 0,
+    blocked: 0,
+    submitted: 0,
+    trusted_verified: tasks.length,
+    verification_disputed: 0,
+    verification_revoked: 0,
+    rejected: 0,
+    current_release_validated: tasks.length,
+    completion_percentage: 100,
+    progress_basis: "historically-trusted-ledger-task-states",
+  };
+  value.agents = [
+    {
+      id: "principal-fedcba9876543210",
+      role: "verifier",
+      status: "READY",
+      mode: "command",
+      attestation_evidence_sha256: evidence,
+      attested_at: observedAt,
+      attested_source_commit: sourceCommit,
+    },
+  ];
+  value.release_gate = {
+    status: "PASS",
+    reasons: [],
+    evidence_sha256: evidence,
+  };
+  return upgradeToPhaseEvidenceSchema(value);
+}
+
 function canonical(value) {
   const keys = (input) => {
     if (Array.isArray(input)) return input.map(keys);
@@ -337,7 +463,7 @@ class Statement {
       let floor = this.database.schemaFloors.get(this.values[0]);
       if (floor === undefined && this.database.latest) {
         const schema = JSON.parse(this.database.latest.payload).schema_version;
-        floor = { "1.0": 100, "1.1": 101, "1.2": 102 }[schema] || 0;
+        floor = { "1.0": 100, "1.1": 101, "1.2": 102, "1.3": 103 }[schema] || 0;
       }
       return floor === undefined ? null : { minimum_schema_rank: floor };
     }
@@ -419,7 +545,7 @@ class MemoryD1 {
       : null;
     const previousFloor =
       this.schemaFloors.get(workspaceId) ||
-      { "1.0": 100, "1.1": 101, "1.2": 102 }[existingSchema] ||
+      { "1.0": 100, "1.1": 101, "1.2": 102, "1.3": 103 }[existingSchema] ||
       0;
     const schemaAllowed = incomingSchemaRank >= previousFloor;
     const changed =
@@ -517,14 +643,14 @@ test("JavaScript verifier matches the Python publisher HMAC contract", async () 
 });
 
 test("PASS release gate requires a valid evidence hash", () => {
-  const value = payload({
+  const value = upgradeToPhaseEvidenceSchema(payload({
     release_gate: { status: "PASS", reasons: [], evidence_sha256: null },
-  });
+  }));
   assert.throws(() => validateSnapshot(value), /evidence hash/);
 });
 
 test("PASS release gate is bound to a fresh agent attestation", () => {
-  const value = payload();
+  const value = upgradeToPhaseEvidenceSchema(payload());
   const evidence = "b".repeat(64);
   value.tasks[0].state = "verified";
   value.tasks[0].historical_state = "verified";
@@ -642,7 +768,7 @@ test("legacy 1.0 snapshots remain valid during the rolling migration", () => {
     reasons: [],
     evidence_sha256: "a".repeat(64),
   };
-  assert.throws(() => validateSnapshot(value), /only snapshot schema 1.2/);
+  assert.throws(() => validateSnapshot(value), /only snapshot schema 1.3/);
 });
 
 test("schema 1.1 is accepted only as fail-closed rolling input", () => {
@@ -655,7 +781,7 @@ test("schema 1.1 is accepted only as fail-closed rolling input", () => {
     reasons: [],
     evidence_sha256: "a".repeat(64),
   };
-  assert.throws(() => validateSnapshot(value), /only snapshot schema 1.2/);
+  assert.throws(() => validateSnapshot(value), /only snapshot schema 1.3/);
 });
 
 test("schema 1.2 exposes verification_revoked without restoring trust", () => {
@@ -670,6 +796,113 @@ test("schema 1.2 exposes verification_revoked without restoring trust", () => {
   value.tasks[0].current_release_validated = true;
   value.tasks_summary.current_release_validated = 1;
   assert.throws(() => validateSnapshot(value), /current release validation/);
+});
+
+test("schema 1.3 requires exact semantic phase evidence and forbids publisher bindings", () => {
+  const missingAudit = payload({ schema_version: "1.3" });
+  assert.throws(
+    () => validateSnapshot(missingAudit),
+    /phase_evidence_audit/,
+  );
+
+  const valid = upgradeToPhaseEvidenceSchema(payload());
+  assert.doesNotThrow(() => validateSnapshot(valid));
+
+  const rawBinding = structuredClone(valid);
+  rawBinding.phase_evidence_binding = {
+    schema: "cogni.phase-evidence-monitor-binding.v1",
+  };
+  assert.throws(
+    () => validateSnapshot(rawBinding),
+    /server-derived/,
+  );
+
+  const duplicate = structuredClone(valid);
+  duplicate.phase_evidence_audit.phases[1].artifact_sha256[0] =
+    duplicate.phase_evidence_audit.phases[0].trusted_output_sha256[0];
+  assert.throws(() => validateSnapshot(duplicate), /reused evidence digest/);
+
+  const authorityClaim = structuredClone(valid);
+  authorityClaim.phase_evidence_audit.release_authority = true;
+  assert.throws(() => validateSnapshot(authorityClaim), /identity is invalid/);
+
+  const falseSummary = structuredClone(valid);
+  falseSummary.phase_evidence_audit.validated_phases = 10;
+  assert.throws(() => validateSnapshot(falseSummary), /not evidence-derived/);
+
+  const wrongPolicyOrder = structuredClone(valid);
+  wrongPolicyOrder.phase_evidence_audit.auditor_policy.files.reverse();
+  assert.throws(() => validateSnapshot(wrongPolicyOrder), /files\[0\] is invalid/);
+
+  const noGo = structuredClone(valid);
+  noGo.phase_evidence_audit.coverage_status = "NO_GO";
+  noGo.phase_evidence_audit.validated_phases = 10;
+  noGo.phase_evidence_audit.progress_percent = 90.9;
+  noGo.phase_evidence_audit.phases[0] = {
+    ...noGo.phase_evidence_audit.phases[0],
+    coverage_status: "NO_GO",
+    reasons: ["TRUSTED_OUTPUT_NOT_BOUND"],
+    source_commit: null,
+    artifact_sha256: [],
+    trusted_output_sha256: [],
+  };
+  assert.doesNotThrow(() => validateSnapshot(noGo));
+
+  const unavailable = structuredClone(valid);
+  unavailable.phase_evidence_audit = {
+    schema: "cogni.phase-evidence-audit-error.v2",
+    coverage_status: "AUDIT_UNAVAILABLE",
+    error: {
+      code: "TIMEOUT",
+      message: "phase evidence auditor timed out",
+    },
+    release_authority: false,
+  };
+  assert.doesNotThrow(() => validateSnapshot(unavailable));
+});
+
+test("schema 1.2 remains rolling input but cannot assert release PASS", () => {
+  const legacy = payload();
+  legacy.release_gate = {
+    status: "PASS",
+    reasons: [],
+    evidence_sha256: "a".repeat(64),
+  };
+  assert.throws(() => validateSnapshot(legacy), /only snapshot schema 1.3/);
+});
+
+test("release PASS cannot be paired with NO_GO or unavailable phase evidence", () => {
+  const noGo = releasePassPayload();
+  noGo.phase_evidence_audit.coverage_status = "NO_GO";
+  noGo.phase_evidence_audit.validated_phases = 10;
+  noGo.phase_evidence_audit.progress_percent = 90.9;
+  noGo.phase_evidence_audit.phases[0] = {
+    ...noGo.phase_evidence_audit.phases[0],
+    coverage_status: "NO_GO",
+    reasons: ["TRUSTED_OUTPUT_NOT_BOUND"],
+    source_commit: null,
+    artifact_sha256: [],
+    trusted_output_sha256: [],
+  };
+  assert.throws(
+    () => validateSnapshot(noGo),
+    /PASS release gate requires a commit-bound 11\/11 semantic phase audit/,
+  );
+
+  const unavailable = releasePassPayload();
+  unavailable.phase_evidence_audit = {
+    schema: "cogni.phase-evidence-audit-error.v2",
+    coverage_status: "AUDIT_UNAVAILABLE",
+    error: {
+      code: "TIMEOUT",
+      message: "phase evidence auditor timed out",
+    },
+    release_authority: false,
+  };
+  assert.throws(
+    () => validateSnapshot(unavailable),
+    /PASS release gate requires a commit-bound 11\/11 semantic phase audit/,
+  );
 });
 
 test("legacy optional provenance cannot disagree with source", () => {
@@ -708,14 +941,18 @@ test("deployment attribution is server-owned and fail-closed", () => {
   assert.equal(deploymentAttribution({}, {}).attribution, "UNAVAILABLE");
 
   const claimedPass = {
+    schema_version: "1.3",
     workspace_id: WORKSPACE,
     source: { git_commit: commit },
+    phase_evidence_audit: phaseAuditFixture(commit),
     monitoring: {
       state: "LIVE",
       signature_verified: true,
+      payload_signature_verified: true,
       age_seconds: 1,
       max_age_seconds: 180,
       sequence: 7,
+      body_sha256: "8".repeat(64),
     },
     gpus: [{ id: 0 }],
     tasks: [{ id: "P02-ORCHESTRATION" }],
@@ -732,6 +969,18 @@ test("deployment attribution is server-owned and fail-closed", () => {
       status: "PASS",
       reasons: [],
       evidence_sha256: "b".repeat(64),
+    },
+    phase_evidence_binding: {
+      schema: "cogni.phase-evidence-monitor-binding.v1",
+      audit_sha256: "9".repeat(64),
+      source_commit: commit,
+      sequence: 7,
+      body_sha256: "8".repeat(64),
+      deployment_id: "deployment-current",
+      deployment_url:
+        "https://a1b2c3d4.cogni-os-orchestrator.pages.dev",
+      release_gate_evidence_sha256: "b".repeat(64),
+      signature_verified: true,
     },
   };
   const downgraded = bindDeploymentTruth(
@@ -934,7 +1183,7 @@ test("health checks the storage schema instead of binding names only", async () 
   const readyBody = await ready.json();
   assert.equal(readyBody.checks.storage_state, "READY");
   assert.equal(readyBody.checks.runtime_configuration_ready, true);
-  assert.equal(readyBody.checks.minimum_release_snapshot_schema, "1.2");
+  assert.equal(readyBody.checks.minimum_release_snapshot_schema, "1.3");
   const buildBound = readyBody.checks.build_attribution_ready;
   assert.equal(readyBody.checks.operational_ingest_ready, buildBound);
   assert.equal(readyBody.checks.release_attribution_ready, false);
@@ -1032,6 +1281,82 @@ test("history rows require signature and current deployment binding", async () =
   assert.deepEqual(corruptData.history, []);
 });
 
+test("verified schema 1.3 history projects only server-bound phase evidence", async () => {
+  const database = new MemoryD1();
+  const value = releasePassPayload();
+  const environment = {
+    MONITOR_DB: database,
+    INGEST_HMAC_KEYS: JSON.stringify({ [KEY_ID]: SECRET }),
+    COGNI_WORKSPACE_ID: WORKSPACE,
+  };
+  const accepted = await ingest({
+    request: await signedRequest(value, "phase_history_nonce_1234"),
+    env: environment,
+  });
+  assert.equal(accepted.status, 202);
+  const directDeployment = value.release_deployment.deployment_url;
+  const deployment = deploymentAttribution(
+    {},
+    {
+      build_bound: true,
+      source_commit: value.source.git_commit,
+      branch: "main",
+      url: "https://cogni-os-orchestrator.pages.dev",
+      deployment_url: directDeployment,
+      project: "cogni-os-orchestrator",
+      environment: "production",
+    },
+  );
+  const projected = await projectHistoryRow(
+    database.history[0],
+    new Map([[KEY_ID, SECRET]]),
+    deployment,
+    180,
+    new Date(),
+  );
+  assert.notEqual(projected, null);
+  assert.equal(projected.sequence, value.sequence);
+  assert.equal(projected.body_sha256, database.history[0].body_sha256);
+  assert.equal(projected.source_commit, value.source.git_commit);
+  assert.equal(
+    projected.deployment_id,
+    value.release_deployment.deployment_id,
+  );
+  assert.equal(projected.deployment_url, directDeployment);
+  assert.equal(projected.signature_verified, true);
+  assert.equal(
+    projected.phase_evidence_audit_sha256,
+    await phaseAuditSha256(value.phase_evidence_audit),
+  );
+  assert.equal(
+    projected.release_gate_evidence_sha256,
+    value.release_gate.evidence_sha256,
+  );
+  assert.equal(projected.release_gate.status, "PASS");
+});
+
+test("ingest rejects publisher-authored phase bindings before storage", async () => {
+  const database = new MemoryD1();
+  const value = releasePassPayload();
+  value.phase_evidence_binding = {
+    schema: "cogni.phase-evidence-monitor-binding.v1",
+  };
+  const response = await ingest({
+    request: await signedRequest(value, "raw_phase_binding_nonce"),
+    env: {
+      MONITOR_DB: database,
+      INGEST_HMAC_KEYS: JSON.stringify({ [KEY_ID]: SECRET }),
+      COGNI_WORKSPACE_ID: WORKSPACE,
+    },
+  });
+  assert.equal(response.status, 400);
+  assert.match(
+    (await response.json()).error.message,
+    /server-derived/,
+  );
+  assert.equal(database.latest, null);
+});
+
 test("tampered HMAC is rejected", async () => {
   const database = new MemoryD1();
   const request = await signedRequest(payload());
@@ -1110,6 +1435,30 @@ test("schema floor rejects downgrade without ratcheting on stale input", async (
     "SCHEMA_DOWNGRADE_REJECTED",
   );
 
+  const phaseSchemaDatabase = new MemoryD1();
+  assert.equal(
+    (
+      await ingest({
+        request: await signedRequest(
+          upgradeToPhaseEvidenceSchema(payload()),
+          "schema_floor_v13_nonce",
+        ),
+        env: environmentFor(phaseSchemaDatabase),
+      })
+    ).status,
+    202,
+  );
+  const v12AfterV13 = payload({ sequence: 2 });
+  const v12AfterV13Response = await ingest({
+    request: await signedRequest(v12AfterV13, "v12_after_v13_nonce_123"),
+    env: environmentFor(phaseSchemaDatabase),
+  });
+  assert.equal(v12AfterV13Response.status, 409);
+  assert.equal(
+    (await v12AfterV13Response.json()).error.code,
+    "SCHEMA_DOWNGRADE_REJECTED",
+  );
+
   const staleDatabase = new MemoryD1();
   const initialLegacy = payload({ schema_version: "1.1" });
   delete initialLegacy.gpu_policy.source_states.boundary;
@@ -1183,6 +1532,81 @@ test("stale snapshot is never labeled LIVE", async () => {
   assert.deepEqual(closed.gpu_policy.allowed_ids, []);
   assert.deepEqual(closed.gpu_policy.denied_ids, []);
   assert.equal(closed.release_gate.status, "NO_GO");
+  assert.equal(closed.phase_evidence_binding, null);
+});
+
+test("phase evidence binding is derived after row verification and never self-hashes", async () => {
+  const observedAt = "2026-08-09T20:00:00.000Z";
+  const value = upgradeToPhaseEvidenceSchema(
+    payload({ observed_at: observedAt }),
+  );
+  assert.equal(value.phase_evidence_binding, undefined);
+  const row = {
+    sequence: value.sequence,
+    observed_at: observedAt,
+    received_at: observedAt,
+    body_sha256: "7".repeat(64),
+    max_age_seconds: 180,
+  };
+  const enveloped = withMonitoringEnvelope(
+    value,
+    row,
+    new Date("2026-08-09T20:00:01.000Z"),
+  );
+  const attached = await attachVerifiedPhaseEvidenceBinding(enveloped, row);
+  assert.equal(
+    attached.phase_evidence_binding.audit_sha256,
+    await phaseAuditSha256(value.phase_evidence_audit),
+  );
+  assert.equal(attached.phase_evidence_binding.sequence, row.sequence);
+  assert.equal(
+    attached.phase_evidence_binding.body_sha256,
+    row.body_sha256,
+  );
+  assert.equal(
+    attached.phase_evidence_binding.release_gate_evidence_sha256,
+    null,
+  );
+  assert.equal(attached.phase_evidence_binding.signature_verified, true);
+
+  const stale = await attachVerifiedPhaseEvidenceBinding(
+    withMonitoringEnvelope(
+      value,
+      row,
+      new Date("2026-08-09T20:10:00.000Z"),
+    ),
+    row,
+  );
+  assert.equal(stale.phase_evidence_binding, null);
+
+  const transportBound = bindDeploymentTruth(
+    attached,
+    deploymentAttribution(
+      {},
+      {
+        build_bound: true,
+        source_commit: value.source.git_commit,
+        branch: "main",
+        url: "https://cogni-os-orchestrator.pages.dev",
+        deployment_url: value.release_deployment.deployment_url,
+        project: "cogni-os-orchestrator",
+        environment: "production",
+      },
+    ),
+  );
+  assert.equal(transportBound.monitoring.state, "LIVE");
+  assert.equal(transportBound.release_gate.status, "NO_GO");
+  assert.equal(
+    operationalSnapshotTrusted(transportBound, transportBound.deployment),
+    true,
+  );
+
+  const unbound = bindDeploymentTruth(
+    attached,
+    deploymentAttribution({}, {}),
+  );
+  assert.equal(unbound.monitoring.state, "UNBOUND_DEPLOYMENT");
+  assert.equal(unbound.phase_evidence_binding, null);
 });
 
 test("non-finite or oversized TTL cannot keep ancient data LIVE", () => {
